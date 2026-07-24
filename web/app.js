@@ -5,67 +5,11 @@ let currentPasscode = "123456789";
 let currentDbUrl = "https://wchat-6ea90-default-rtdb.asia-southeast1.firebasedatabase.app/";
 let bossStates = {};
 let bossRules = [];
-let chatHistory = [];
 let localTimers = {};
 let notifiedSpawns = new Set(); // Prevent duplicate 5-minute notifications for the same spawn
-let soundEnabled = true;
 let notifyEnabled = true;
 let currentBossFilter = "all";
-let currentChatFilter = "all";
 let selectedBossForReport = null;
-
-// Web Audio Context for synthesized notification chimes
-let audioCtx = null;
-
-function getAudioContext() {
-  if (!audioCtx) {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) {
-      audioCtx = new AudioContext();
-    }
-  }
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  return audioCtx;
-}
-
-// Play pleasant double chime notification sound
-function playWarningChime() {
-  if (!soundEnabled) return;
-  try {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    
-    // First tone (E5 - 659Hz)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(659.25, now);
-    gain1.gain.setValueAtTime(0.15, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.4);
-
-    // Second tone (A5 - 880Hz)
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(880, now + 0.15);
-    gain2.gain.setValueAtTime(0.2, now + 0.15);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(now + 0.15);
-    osc2.stop(now + 0.65);
-  } catch (e) {
-    console.log("Audio chime playback error:", e);
-  }
-}
 
 // Register PWA Service Worker
 if ('serviceWorker' in navigator) {
@@ -122,6 +66,7 @@ async function fetchDirectRestData(url, passcode) {
         updateConnectionStatus('online');
         renderBossGrid();
         updateTimeline();
+        renderSequenceQueue();
       }
     }
   } catch (e) {
@@ -142,7 +87,6 @@ function initFirebase(url, passcode) {
   if (db) {
     try {
       db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).off();
-      db.ref(`lineage_w_tracker/${currentPasscode}/chat_history`).off();
       db.ref(`lineage_w_tracker/${currentPasscode}/boss_rules`).off();
     } catch(e){}
   }
@@ -183,6 +127,7 @@ function startSyncListeners() {
       updateConnectionStatus('online');
       renderBossGrid();
       updateTimeline();
+      renderSequenceQueue();
     }
   });
 
@@ -216,6 +161,7 @@ function updateConnectionStatus(status) {
 
 /* ==========================================================================
    DYNAMIC INTERACTIVE TIMELINE SYSTEM (-30m ~ NOW ~ +3h)
+   Includes 3-Tier Vertical Marker Staggering to prevent text overlap!
    ========================================================================== */
 
 function initTimelineScale() {
@@ -272,6 +218,8 @@ function updateTimeline() {
 
   layer.innerHTML = '';
 
+  // 1. Collect and calculate position percentage for all valid bosses
+  const markerItems = [];
   Object.values(bossStates).forEach(boss => {
     let targetTimeMs = null;
 
@@ -283,41 +231,125 @@ function updateTimeline() {
 
     if (!targetTimeMs || isNaN(targetTimeMs)) return;
 
-    // Check if target time is within the 3.5 hour window
     if (targetTimeMs >= windowStartMs && targetTimeMs <= windowEndMs) {
       const pct = ((targetTimeMs - windowStartMs) / totalWindowMs) * 100;
       const diffSec = Math.floor((targetTimeMs - nowMs) / 1000);
-
-      const marker = document.createElement('div');
-      marker.className = 'timeline-marker';
-      marker.style.left = `${pct}%`;
-
-      // Determine marker status class
-      let statusClass = 'marker-future';
-      if (diffSec < 0) {
-        statusClass = 'marker-past';
-      } else if (diffSec <= 300) { // < 5 mins
-        statusClass = 'marker-warning';
-      } else if (diffSec <= 1800) { // < 30 mins
-        statusClass = 'marker-soon';
-      }
-
-      marker.classList.add(statusClass);
-
-      const timeStr = new Date(targetTimeMs).toTimeString().substring(0, 5);
-      marker.innerHTML = `
-        <div class="marker-content">
-          <div class="marker-dot"></div>
-          <div class="marker-label">${boss.name} ${timeStr}</div>
-        </div>
-      `;
-
-      marker.addEventListener('click', () => {
-        highlightBossCard(boss.name);
-      });
-
-      layer.appendChild(marker);
+      markerItems.push({ boss, targetTimeMs, pct, diffSec });
     }
+  });
+
+  // Sort by position percentage ascending
+  markerItems.sort((a, b) => a.pct - b.pct);
+
+  // 2. Assign vertical tier (0, 1, 2) to adjacent close markers to prevent label overlap!
+  let currentTier = 0;
+  let prevPct = -999;
+
+  markerItems.forEach(item => {
+    if (item.pct - prevPct < 8) { // If within 8% width of previous pin
+      currentTier = (currentTier + 1) % 3;
+    } else {
+      currentTier = 0;
+    }
+    prevPct = item.pct;
+    item.tier = currentTier;
+  });
+
+  // 3. Render markers with vertical tier classes
+  markerItems.forEach(item => {
+    const marker = document.createElement('div');
+    marker.className = `timeline-marker tier-${item.tier}`;
+    marker.style.left = `${item.pct}%`;
+
+    let statusClass = 'marker-future';
+    if (item.diffSec < 0) {
+      statusClass = 'marker-past';
+    } else if (item.diffSec <= 300) { // < 5 mins
+      statusClass = 'marker-warning';
+    } else if (item.diffSec <= 1800) { // < 30 mins
+      statusClass = 'marker-soon';
+    }
+
+    marker.classList.add(statusClass);
+
+    const timeStr = new Date(item.targetTimeMs).toTimeString().substring(0, 5);
+    marker.innerHTML = `
+      <div class="marker-content">
+        <div class="marker-dot"></div>
+        <div class="marker-label">${item.boss.name} ${timeStr}</div>
+      </div>
+    `;
+
+    marker.addEventListener('click', () => {
+      highlightBossCard(item.boss.name);
+    });
+
+    layer.appendChild(marker);
+  });
+}
+
+/* ==========================================================================
+   CHRONOLOGICAL SEQUENCE QUEUE (密集 BOSS 順序鏈)
+   ========================================================================== */
+
+function renderSequenceQueue() {
+  const container = document.getElementById('sequenceQueueList');
+  if (!container) return;
+
+  const nowMs = Date.now();
+  const upcomingBosses = [];
+
+  Object.values(bossStates).forEach(boss => {
+    if (!boss.next_spawn_time) return;
+    const spawnMs = new Date(boss.next_spawn_time).getTime();
+    if (isNaN(spawnMs)) return;
+
+    const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+    // Include upcoming bosses in next 3 hours
+    if (diffSec >= -300 && diffSec <= 3 * 3600) {
+      upcomingBosses.push({ boss, spawnMs, diffSec });
+    }
+  });
+
+  if (upcomingBosses.length === 0) {
+    container.innerHTML = '<div class="loading-state">目前無即將重生的 BOSS</div>';
+    return;
+  }
+
+  // Sort by spawn time ascending
+  upcomingBosses.sort((a, b) => a.spawnMs - b.spawnMs);
+
+  container.innerHTML = '';
+  upcomingBosses.forEach((item, index) => {
+    const card = document.createElement('div');
+    let itemClass = 'seq-item';
+    if (item.diffSec > 0 && item.diffSec <= 300) {
+      itemClass += ' seq-item-warning';
+    } else if (item.diffSec > 300 && item.diffSec <= 1800) {
+      itemClass += ' seq-item-soon';
+    }
+    card.className = itemClass;
+
+    const timeStr = new Date(item.spawnMs).toTimeString().substring(0, 5);
+    let diffStr = '已重生';
+    if (item.diffSec > 0) {
+      const m = Math.floor(item.diffSec / 60);
+      diffStr = `剩 ${m} 分`;
+    }
+
+    card.innerHTML = `
+      <span class="seq-idx">#${index + 1}</span>
+      <span class="seq-name">👹 ${item.boss.name}</span>
+      <span class="seq-time">${timeStr}</span>
+      <span class="seq-diff">(${diffStr})</span>
+      ${index < upcomingBosses.length - 1 ? '<span class="seq-arrow">➔</span>' : ''}
+    `;
+
+    card.addEventListener('click', () => {
+      highlightBossCard(item.boss.name);
+    });
+
+    container.appendChild(card);
   });
 }
 
@@ -421,10 +453,7 @@ function triggerBoss5MinWarning(boss, secondsLeft) {
   const title = `🔔 [BOSS 預警] ${boss.name}`;
   const body = `即將在 ${minsLeft} 分鐘後 (${spawnTimeStr}) 出現！請血盟成員準備！`;
 
-  // 1. Play Audio Chime
-  playWarningChime();
-
-  // 2. Trigger Windows Native Toast / PWA Notification if enabled
+  // Trigger Windows Native Toast / PWA Notification if enabled
   if (notifyEnabled) {
     sendNativeNotification(title, body, boss.name);
   }
@@ -439,6 +468,7 @@ function tickRealtimeLoop() {
 
   checkAdvanceWarnings(nowMs);
   updateTimeline();
+  renderSequenceQueue();
   updateCardCountdowns(nowMs);
 }
 
@@ -592,29 +622,21 @@ function setupUIEventListeners() {
     });
   });
 
-  // Settings Button
-  document.getElementById('settingsBtn')?.addEventListener('click', () => showModal('settingsModal'));
-  document.getElementById('closeSettingsBtn')?.addEventListener('click', () => hideModal('settingsModal'));
-
-  // Sound Toggle Button
-  document.getElementById('soundToggleBtn')?.addEventListener('click', (e) => {
-    soundEnabled = !soundEnabled;
-    const btn = e.currentTarget;
-    btn.classList.toggle('active', soundEnabled);
-    btn.querySelector('.pill-text').textContent = soundEnabled ? '音效開啟' : '音效關閉';
-    if (soundEnabled) playWarningChime();
-  });
-
-  // Notification Toggle Button
+  // Notification Toggle Button in Header
   document.getElementById('notifyToggleBtn')?.addEventListener('click', (e) => {
     notifyEnabled = !notifyEnabled;
     const btn = e.currentTarget;
     btn.classList.toggle('active', notifyEnabled);
-    btn.querySelector('.pill-text').textContent = notifyEnabled ? '5分鐘預警' : '預警關閉';
+    btn.querySelector('.pill-text').textContent = notifyEnabled ? '5分鐘預警: 開啟' : '5分鐘預警: 關閉';
 
     if (notifyEnabled) {
       requestAndTestNotification();
     }
+  });
+
+  // Direct Test Notification Button in Header
+  document.getElementById('testPushBtn')?.addEventListener('click', () => {
+    requestAndTestNotification();
   });
 
   // Boss Filter Buttons
@@ -630,19 +652,7 @@ function setupUIEventListeners() {
   // Manual Report Form Submission
   document.getElementById('closeReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
   document.getElementById('cancelReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
-
   document.getElementById('submitReportBtn')?.addEventListener('click', submitManualReport);
-
-  // Settings Save Button
-  document.getElementById('saveSettingsBtn')?.addEventListener('click', () => {
-    hideModal('settingsModal');
-  });
-
-  // Test Push Notification Button
-  document.getElementById('testPushBtn')?.addEventListener('click', () => {
-    playWarningChime();
-    requestAndTestNotification();
-  });
 }
 
 function submitManualReport() {
@@ -671,7 +681,7 @@ function submitManualReport() {
     status: 'dead'
   };
 
-  // REST PUT for guaranteed submission without requiring password input
+  // REST PUT for guaranteed submission
   const cleanUrl = currentDbUrl.replace(/\/$/, "");
   const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
   

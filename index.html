@@ -18,25 +18,24 @@
         <span class="logo-icon">⚔️</span>
         <div class="header-titles">
           <h1>天堂W BOSS 動態時間軸</h1>
-          <span class="header-sub">即時同步 · 5分鐘前推播預警 · 靜態網頁端</span>
+          <span class="header-sub">即時同步 · 5分鐘前推播預警</span>
         </div>
       </div>
       <div class="header-right">
-        <!-- Notification & Sound Quick Toggles -->
-        <button id="soundToggleBtn" class="toggle-pill-btn active" title="切換音效通知">
-          <span class="pill-icon">🔊</span>
-          <span class="pill-text">音效開啟</span>
-        </button>
+        <!-- Notification Toggle & Direct Test Button on Header -->
         <button id="notifyToggleBtn" class="toggle-pill-btn active" title="切換5分鐘推播預警">
           <span class="pill-icon">🔔</span>
-          <span class="pill-text">5分鐘預警</span>
+          <span class="pill-text">5分鐘預警: 開啟</span>
+        </button>
+        <button id="testPushBtn" class="toggle-pill-btn btn-test-push" title="測試發送 Windows 右下角通知">
+          <span class="pill-icon">🧪</span>
+          <span class="pill-text">測試 Windows 推播</span>
         </button>
 
         <div id="connectionStatus" class="status-badge status-offline">
           <span class="status-dot"></span>
           <span class="status-text">未連線</span>
         </div>
-        <button id="settingsBtn" class="icon-btn" title="設定">⚙️</button>
       </div>
     </header>
 
@@ -68,9 +67,17 @@
                 <div class="now-line"></div>
               </div>
 
-              <!-- Boss Event Markers on Timeline -->
+              <!-- Boss Event Markers on Timeline (Staggered Tiers) -->
               <div class="timeline-markers-layer" id="timelineMarkersLayer"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Chronological Sequence Queue (密集 BOSS 重生次序鏈) -->
+        <div class="sequence-queue-wrapper">
+          <div class="sequence-title">📋 即時重生次序鏈 (照時間先後排列)：</div>
+          <div class="sequence-queue-list" id="sequenceQueueList">
+            <div class="loading-state">計算次序中...</div>
           </div>
         </div>
       </section>
@@ -129,42 +136,6 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelReportBtn">取消</button>
           <button type="button" class="btn btn-primary" id="submitReportBtn">確定送出通報</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>⚙️ 系統與推播預警設定</h3>
-          <span class="close-btn" id="closeSettingsBtn">&times;</span>
-        </div>
-        <div class="modal-body">
-          <form id="settingsForm">
-            <div class="form-group notification-group">
-              <div class="notification-label">
-                <span class="icon">🔔</span>
-                <div>
-                  <strong>啟用 5 分鐘前推播預警</strong>
-                  <p class="help-block">當 BOSS 剩餘 5 分鐘重生時觸發手機與電腦推播</p>
-                </div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="pushNotificationToggle" checked>
-                <span class="slider round"></span>
-              </label>
-            </div>
-
-            <div class="divider"></div>
-            
-            <div class="form-group" id="testPushGroup">
-              <button type="button" class="btn btn-secondary btn-full" id="testPushBtn">測試發送預警通知 (Windows 右下角)</button>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-primary btn-full" id="saveSettingsBtn">完成</button>
         </div>
       </div>
     </div>
