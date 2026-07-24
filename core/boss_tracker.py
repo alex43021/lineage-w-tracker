@@ -177,6 +177,20 @@ class BossTracker:
         logger.info(f"Recorded spawn for {boss_name} at {time_str} via {source} ({reporter})")
         return {"boss": boss_name, "type": "spawn", "time": time_str, "source": source}
 
+    @staticmethod
+    def _parse_datetime(iso_str):
+        """Parse ISO string cleanly, converting UTC/tz-aware strings to local naive datetime."""
+        if not iso_str:
+            return None
+        try:
+            clean_str = str(iso_str).replace('Z', '+00:00')
+            dt = datetime.fromisoformat(clean_str)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone().replace(tzinfo=None)
+            return dt
+        except Exception:
+            return None
+
     def record_death(self, boss_name, time_obj, source="ocr", reporter="system"):
         """
         Record boss death event.
@@ -192,24 +206,24 @@ class BossTracker:
         next_spawn_str = next_spawn_time.isoformat()
 
         # Conflict resolution logic
-        if state["last_death_time"]:
-            last_death = datetime.fromisoformat(state["last_death_time"])
-            time_diff_mins = abs((time_obj - last_death).total_seconds()) / 60.0
+        if state.get("last_death_time"):
+            last_death = self._parse_datetime(state["last_death_time"])
+            if last_death:
+                time_diff_mins = abs((time_obj - last_death).total_seconds()) / 60.0
 
-            # If the events are close (within the boss cooldown window), they represent the same death event
-            is_same_cycle = time_diff_mins < (state["cooldown_mins"] * 0.8)
+                # If the events are close (within the boss cooldown window), they represent the same death event
+                is_same_cycle = time_diff_mins < (state["cooldown_mins"] * 0.8)
 
-            if is_same_cycle:
-                # Case 1: New report is manual, but existing state was OCR
-                if source == "manual" and state["source"] == "ocr":
-                    logger.info(f"Discarding manual death report for {boss_name} at {time_str} because OCR record exists.")
-                    return None
+                if is_same_cycle:
+                    # Case 1: New report is manual, but existing state was OCR
+                    if source == "manual" and state.get("source") == "ocr":
+                        logger.info(f"Discarding manual death report for {boss_name} at {time_str} because OCR record exists.")
+                        return None
 
-                # Case 2: New report is OCR, but existing state was manual
-                if source == "ocr" and state["source"] == "manual":
-                    logger.info(f"OCR overrides manual death report for {boss_name}. Updating death time from {state['last_death_time']} to {time_str} (OCR).")
-                    # Let it overwrite!
-                    
+                    # Case 2: New report is OCR, but existing state was manual
+                    if source == "ocr" and state.get("source") == "manual":
+                        logger.info(f"OCR overrides manual death report for {boss_name}. Updating death time from {state['last_death_time']} to {time_str} (OCR).")
+
         # Update state
         state["status"] = "dead"
         state["last_death_time"] = time_str
@@ -223,20 +237,11 @@ class BossTracker:
     def process_manual_report(self, report_data):
         """
         Process a manual death report from Firebase.
-        report_data format:
-        {
-          "boss_name": "巴風特",
-          "time_type": "now" | "custom",
-          "custom_time": "14:35" (HH:MM),
-          "reported_by": "username",
-          "timestamp": 128913912389 (epochs milliseconds or iso string)
-        }
         """
         boss_name = report_data.get("boss_name")
         if boss_name not in self.states:
             return None
 
-        # Parse the death time
         reported_by = report_data.get("reported_by", "Guest")
         time_type = report_data.get("time_type", "now")
         
@@ -248,13 +253,15 @@ class BossTracker:
             match = re.match(r"^(\d{1,2}):(\d{2})$", custom_time_str)
             if match:
                 hours, minutes = int(match.group(1)), int(match.group(2))
-                # Set HH:MM of today
                 death_time = now.replace(hour=hours, minute=minutes, second=0, microsecond=0)
-                # If death_time is in the future compared to now, assume it was yesterday
                 if death_time > now:
                     death_time -= timedelta(days=1)
             else:
                 logger.warning(f"Invalid custom time format '{custom_time_str}'. Defaulting to now.")
+        elif report_data.get("timestamp"):
+            ts_val = report_data.get("timestamp")
+            parsed_dt = self._parse_datetime(ts_val)
+            if parsed_dt:
+                death_time = parsed_dt
 
-        # Record manual death
         return self.record_death(boss_name, death_time, source="manual", reporter=reported_by)

@@ -682,24 +682,25 @@ function submitManualReport() {
 
   const reporterName = document.getElementById('reporterName')?.value?.trim() || '成員';
   const timeType = document.querySelector('input[name="timeType"]:checked')?.value || 'now';
-  let eventTimeIso = new Date().toISOString();
+  const customVal = document.getElementById('customTime')?.value || '';
 
-  if (timeType === 'custom') {
-    const customVal = document.getElementById('customTime')?.value;
-    if (customVal) {
-      const parts = customVal.split(':');
-      const d = new Date();
-      d.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
-      eventTimeIso = d.toISOString();
-    }
+  const d = new Date();
+  if (timeType === 'custom' && customVal) {
+    const parts = customVal.split(':');
+    d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
   }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const localIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
   const reportId = 'rep_' + Date.now();
   const reportData = {
     boss_name: selectedBossForReport,
     reported_by: reporterName,
+    time_type: timeType,
+    custom_time: customVal,
     passcode: currentPasscode,
-    timestamp: eventTimeIso,
+    timestamp: localIso,
     status: 'dead'
   };
 
