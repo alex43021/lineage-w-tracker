@@ -143,6 +143,9 @@ function startSyncListeners() {
     const data = snapshot.val();
     if (Array.isArray(data)) {
       bossRules = data;
+      renderBossGrid();
+      updateTimeline();
+      renderSequenceQueue();
     }
   });
 }
@@ -167,8 +170,7 @@ function updateConnectionStatus(status) {
 }
 
 /* ==========================================================================
-   CROSS-BROWSER GUARANTEED LOCAL TIME PARSER
-   Prevents Safari / iOS / Chrome from parsing naive ISO strings as UTC
+   CROSS-BROWSER GUARANTEED LOCAL TIME PARSER & COOLDOWN LOOKUP
    ========================================================================== */
 
 function parseIsoToEpochMs(dateStr) {
@@ -177,13 +179,11 @@ function parseIsoToEpochMs(dateStr) {
 
   const str = String(dateStr).trim();
   
-  // If string explicitly specifies Z or offset like +08:00
   if (str.includes('Z') || /[+-]\d{2}:\d{2}$/.test(str)) {
     const ms = Date.parse(str);
     return isNaN(ms) ? null : ms;
   }
 
-  // Parse YYYY-MM-DDTHH:mm:ss as LOCAL time explicitly
   const match = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (match) {
     const year = parseInt(match[1], 10);
@@ -209,18 +209,31 @@ function formatLocalTime24(dateObjOrIsoStr) {
   return `${hh}:${mm}`;
 }
 
+function getBossCooldownMins(bossName) {
+  if (Array.isArray(bossRules) && bossRules.length > 0) {
+    const rule = bossRules.find(r => r.name === bossName);
+    if (rule && rule.cooldown_mins) {
+      return rule.cooldown_mins;
+    }
+  }
+  if (bossStates[bossName] && bossStates[bossName].cooldown_mins) {
+    return bossStates[bossName].cooldown_mins;
+  }
+  return 60;
+}
+
 function getEffectiveBossState(boss, nowMs = Date.now()) {
   let isOverdue = boss.is_overdue || false;
   let displayName = boss.name;
 
   let spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
-  const cooldownMins = boss.cooldown_mins || 60;
+  const cooldownMins = getBossCooldownMins(boss.name);
   const cooldownMs = cooldownMins * 60 * 1000;
 
   if (spawnMs && !isNaN(spawnMs)) {
     if (spawnMs <= nowMs && boss.status !== 'alive') {
       isOverdue = true;
-      // Auto roll forward to the next cycle until spawnMs > nowMs
+      // Auto roll forward to the next cycle using exact boss cooldown
       while (spawnMs <= nowMs) {
         spawnMs += cooldownMs;
       }
@@ -234,6 +247,8 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
   return {
     displayName,
     spawnMs,
+    cooldownMins,
+    cooldownMs,
     isOverdue
   };
 }
@@ -301,7 +316,7 @@ function updateTimeline() {
 
   // Evaluate EVERY boss for past death events AND future spawn cycles in the 3.5h window!
   Object.values(bossStates).forEach(boss => {
-    const cooldownMins = boss.cooldown_mins || 60;
+    const cooldownMins = getBossCooldownMins(boss.name);
     const cooldownMs = cooldownMins * 60 * 1000;
 
     // 1. Check last_death_time (Past death event in -30m ~ +3h)
@@ -668,7 +683,7 @@ function renderBossGrid() {
     card.className = `boss-card ${stateClass}`;
     card.dataset.bossName = boss.name;
 
-    const lastDeathStr = formatLocalTime24(boss.last_death_time);
+    const lastDeathStr = boss.last_death_time ? formatLocalTime24(boss.last_death_time) : (eff.isOverdue && eff.spawnMs ? `${formatLocalTime24(eff.spawnMs - eff.cooldownMs)} (推算)` : '--:--');
     const nextSpawnStr = eff.spawnMs ? formatLocalTime24(eff.spawnMs) : '--:--';
     const statusText = boss.status === 'alive' ? '已出現' : (boss.status === 'dead' ? '倒數中' : (eff.isOverdue ? '倒數中(過)' : '未知'));
 
