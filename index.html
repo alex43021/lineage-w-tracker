@@ -23,16 +23,16 @@
       </div>
       
       <div class="header-right">
-        <!-- PWA Mobile Add to Home Screen Button -->
+        <!-- PWA Mobile Add to Home Screen Button (Only visible on mobile devices via CSS) -->
         <button id="pwaInstallBtn" class="toggle-pill-btn btn-pwa-install" title="加到手機桌面">
           <span class="pill-icon">📱</span>
           <span class="pill-text">加到桌面</span>
         </button>
 
-        <!-- Notification Toggle & Test Button -->
-        <button id="notifyToggleBtn" class="toggle-pill-btn active" title="切換5分鐘推播預警">
+        <!-- Notification Toggle & Test Button (Default OFF) -->
+        <button id="notifyToggleBtn" class="toggle-pill-btn" title="切換5分鐘推播預警">
           <span class="pill-icon">🔔</span>
-          <span class="pill-text">預警:開</span>
+          <span class="pill-text">預警:關</span>
         </button>
         <button id="testPushBtn" class="toggle-pill-btn btn-test-push" title="測試推播">
           <span class="pill-icon">🧪</span>
@@ -62,9 +62,6 @@
       <section class="section timeline-section view-tab-content active" id="tabContentTimeline">
         <div class="section-header">
           <h2>⏳ 3.5小時 動態時間軸 <span class="timeline-subtitle">(-30m ~ 目前 ~ +3h)</span></h2>
-          <button id="centerNowBtn" class="btn btn-center-now" title="定位到目前時間">
-            🎯 置中目前時間
-          </button>
         </div>
 
         <div class="timeline-legend">
@@ -119,7 +116,7 @@
       </section>
     </main>
 
-    <!-- Manual Death Report Modal -->
+    <!-- Manual Death Report Modal (Streamlined 24h Time Selection Only) -->
     <div id="reportModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
@@ -142,11 +139,6 @@
                 <select id="customMinute" class="form-control select-24h"></select>
                 <span class="time-unit">時 / 分</span>
               </div>
-            </div>
-
-            <div class="form-group" style="margin-top: 0.75rem;">
-              <label for="reporterName">您的通報稱呼：</label>
-              <input type="text" id="reporterName" class="form-control" placeholder="例如：成員A" value="成員">
             </div>
           </form>
         </div>

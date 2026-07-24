@@ -121,6 +121,7 @@ body {
 }
 
 .btn-pwa-install {
+  display: none; /* Hidden on desktop computers by default */
   background: rgba(251, 191, 36, 0.15);
   border-color: rgba(251, 191, 36, 0.4);
   color: #fde047;
@@ -920,6 +921,10 @@ body {
     padding: 0.25rem 0.45rem;
     font-size: 0.68rem;
     border-radius: 12px;
+  }
+
+  .btn-pwa-install {
+    display: inline-flex; /* Shown ONLY on mobile devices */
   }
 
   .status-badge {

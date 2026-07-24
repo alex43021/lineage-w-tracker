@@ -7,7 +7,7 @@ let bossStates = {};
 let bossRules = [];
 let localTimers = {};
 let notifiedSpawns = new Set(); // Prevent duplicate 5-minute notifications for the same spawn
-let notifyEnabled = true;
+let notifyEnabled = false;
 let currentBossFilter = "all";
 let selectedBossForReport = null;
 let deferredPrompt = null;
@@ -959,8 +959,8 @@ function setupUIEventListeners() {
 function submitManualReport() {
   if (!selectedBossForReport) return;
 
-  const reporterName = document.getElementById('reporterName')?.value?.trim() || '成員';
-  const timeType = document.querySelector('input[name="timeType"]:checked')?.value || 'now';
+  const reporterName = '成員';
+  const timeType = 'custom';
 
   const d = new Date();
   let customVal = '';
