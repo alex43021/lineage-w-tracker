@@ -326,46 +326,59 @@ body {
 
 .timeline-marker {
   position: absolute;
-  transform: translate(-50%, -50%);
   cursor: pointer;
   z-index: 5;
-  transition: transform 0.2s ease, z-index 0.2s ease;
+  transition: z-index 0.2s ease;
+  pointer-events: auto;
 }
 
 .timeline-marker.tier-0 { top: 22%; }
 .timeline-marker.tier-1 { top: 52%; }
 .timeline-marker.tier-2 { top: 82%; }
 
-.timeline-marker:hover {
-  transform: translate(-50%, -55%) scale(1.18);
-  z-index: 25;
-}
-
 .marker-content {
+  position: relative;
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 0.3rem;
 }
 
+/* The dot IS the exact anchor point centered at left: pct% */
 .marker-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid var(--bg-color);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
   flex-shrink: 0;
+  z-index: 2;
 }
 
+/* The label hangs to the right of the dot so it never shifts the dot's X position! */
 .marker-label {
+  position: absolute;
+  left: 10px;
+  top: 0;
+  transform: translateY(-50%);
   font-size: 0.73rem;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 6px;
   white-space: nowrap;
   backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1;
+}
+
+.timeline-marker:hover {
+  z-index: 25;
+}
+.timeline-marker:hover .marker-dot {
+  transform: translate(-50%, -50%) scale(1.35);
 }
 
 /* Marker Status Colors */
