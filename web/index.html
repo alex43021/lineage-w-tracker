@@ -115,19 +115,14 @@
               </div>
             </div>
             
-            <div class="form-group" id="customTimeGroup" style="display: none;">
-              <label for="customTime">精確時間 (HH:MM)：</label>
-              <input type="time" id="customTime" class="form-control">
+            <div class="form-group" id="customTimeGroup" style="display: none; margin-top: 0.5rem;">
+              <label for="customTime">請選擇精確擊殺時間 (HH:MM)：</label>
+              <input type="time" id="customTime" class="form-control" style="font-size: 1.1rem; padding: 0.6rem;">
             </div>
 
-            <div class="form-group">
-              <label for="passcode">血盟暗號 (密碼)：</label>
-              <input type="password" id="passcode" class="form-control" placeholder="請輸入血盟密碼">
-            </div>
-
-            <div class="form-group">
+            <div class="form-group" style="margin-top: 0.5rem;">
               <label for="reporterName">您的通報稱呼：</label>
-              <input type="text" id="reporterName" class="form-control" placeholder="例如：勇者A" required>
+              <input type="text" id="reporterName" class="form-control" placeholder="例如：成員A" value="成員">
             </div>
           </form>
         </div>
@@ -142,23 +137,11 @@
     <div id="settingsModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>⚙️ 系統與連線設定</h3>
+          <h3>⚙️ 系統與推播預警設定</h3>
           <span class="close-btn" id="closeSettingsBtn">&times;</span>
         </div>
         <div class="modal-body">
           <form id="settingsForm">
-            <div class="form-group">
-              <label for="dbUrlInput">Firebase Realtime Database URL:</label>
-              <input type="text" id="dbUrlInput" class="form-control" placeholder="https://xxxx-default-rtdb.firebaseio.com">
-            </div>
-            
-            <div class="form-group">
-              <label for="dbPasscodeInput">血盟暗號 / 密碼 (Passcode):</label>
-              <input type="password" id="dbPasscodeInput" class="form-control" placeholder="例如：123456789">
-            </div>
-
-            <div class="divider"></div>
-
             <div class="form-group notification-group">
               <div class="notification-label">
                 <span class="icon">🔔</span>
@@ -172,14 +155,16 @@
                 <span class="slider round"></span>
               </label>
             </div>
+
+            <div class="divider"></div>
             
             <div class="form-group" id="testPushGroup">
-              <button type="button" class="btn btn-secondary btn-full" id="testPushBtn">發送測試預警通知</button>
+              <button type="button" class="btn btn-secondary btn-full" id="testPushBtn">測試發送預警通知 (Windows 右下角)</button>
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary btn-full" id="saveSettingsBtn">儲存設定並連結</button>
+          <button type="button" class="btn btn-primary btn-full" id="saveSettingsBtn">完成</button>
         </div>
       </div>
     </div>

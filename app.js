@@ -106,15 +106,7 @@ async function loadConfigAndConnect() {
   if (savedUrl) currentDbUrl = savedUrl.replace(/\/$/, "");
   if (savedCode) currentPasscode = savedCode;
 
-  // Pre-fill modal fields
-  document.getElementById('dbUrlInput').value = currentDbUrl;
-  document.getElementById('dbPasscodeInput').value = currentPasscode;
-
-  if (currentDbUrl) {
-    initFirebase(currentDbUrl, currentPasscode);
-  } else {
-    showModal('settingsModal');
-  }
+  initFirebase(currentDbUrl, currentPasscode);
 }
 
 // Direct REST API Fallback Fetch for Instant Rendering
@@ -179,7 +171,7 @@ function initFirebase(url, passcode) {
   }
 }
 
-// Start realtime sync listeners for boss_states and chat_history
+// Start realtime sync listeners for boss_states
 function startSyncListeners() {
   if (!db) return;
 
@@ -199,15 +191,6 @@ function startSyncListeners() {
     const data = snapshot.val();
     if (Array.isArray(data)) {
       bossRules = data;
-    }
-  });
-
-  // 3. Sync Chat History
-  db.ref(`lineage_w_tracker/${currentPasscode}/chat_history`).on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (Array.isArray(data)) {
-      chatHistory = data;
-      renderChatLog();
     }
   });
 }
@@ -562,10 +545,46 @@ function renderBossGrid() {
 function openReportModal(bossName) {
   selectedBossForReport = bossName;
   document.getElementById('reportBossName').textContent = `通報王怪：${bossName}`;
+
+  // Default to "now" radio option
+  const nowRadio = document.querySelector('input[name="timeType"][value="now"]');
+  if (nowRadio) nowRadio.checked = true;
+  
+  const customGroup = document.getElementById('customTimeGroup');
+  if (customGroup) customGroup.style.display = 'none';
+
+  // Pre-fill time input with current HH:MM
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const customInput = document.getElementById('customTime');
+  if (customInput) customInput.value = `${hh}:${mm}`;
+
   showModal('reportModal');
 }
 
 function setupUIEventListeners() {
+  // Radio button toggle for time type in manual report modal
+  document.querySelectorAll('input[name="timeType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const customGroup = document.getElementById('customTimeGroup');
+      if (customGroup) {
+        if (e.target.value === 'custom') {
+          customGroup.style.display = 'flex';
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(2, '0');
+          const mm = String(now.getMinutes()).padStart(2, '0');
+          const customInput = document.getElementById('customTime');
+          if (customInput && !customInput.value) {
+            customInput.value = `${hh}:${mm}`;
+          }
+        } else {
+          customGroup.style.display = 'none';
+        }
+      }
+    });
+  });
+
   // Settings Button
   document.getElementById('settingsBtn')?.addEventListener('click', () => showModal('settingsModal'));
   document.getElementById('closeSettingsBtn')?.addEventListener('click', () => hideModal('settingsModal'));
@@ -609,12 +628,7 @@ function setupUIEventListeners() {
 
   // Settings Save Button
   document.getElementById('saveSettingsBtn')?.addEventListener('click', () => {
-    const url = document.getElementById('dbUrlInput').value.trim();
-    const code = document.getElementById('dbPasscodeInput').value.trim();
-    if (url) {
-      initFirebase(url, code);
-      hideModal('settingsModal');
-    }
+    hideModal('settingsModal');
   });
 
   // Test Push Notification Button
@@ -627,13 +641,12 @@ function setupUIEventListeners() {
 function submitManualReport() {
   if (!selectedBossForReport) return;
 
-  const passcode = document.getElementById('passcode').value.trim() || currentPasscode;
-  const reporterName = document.getElementById('reporterName').value.trim() || '成員';
-  const timeType = document.querySelector('input[name="timeType"]:checked').value;
+  const reporterName = document.getElementById('reporterName')?.value?.trim() || '成員';
+  const timeType = document.querySelector('input[name="timeType"]:checked')?.value || 'now';
   let eventTimeIso = new Date().toISOString();
 
   if (timeType === 'custom') {
-    const customVal = document.getElementById('customTime').value;
+    const customVal = document.getElementById('customTime')?.value;
     if (customVal) {
       const parts = customVal.split(':');
       const d = new Date();
@@ -646,12 +659,12 @@ function submitManualReport() {
   const reportData = {
     boss_name: selectedBossForReport,
     reported_by: reporterName,
-    passcode: passcode,
+    passcode: currentPasscode,
     timestamp: eventTimeIso,
     status: 'dead'
   };
 
-  // REST PUT for guaranteed submission across all browsers
+  // REST PUT for guaranteed submission without requiring password input
   const cleanUrl = currentDbUrl.replace(/\/$/, "");
   const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
   
@@ -664,10 +677,9 @@ function submitManualReport() {
     if (res.ok) {
       alert(`🎉 成功通報 ${selectedBossForReport} 已擊殺！系統將自動廣播給所有用戶。`);
       hideModal('reportModal');
-      // Re-fetch immediately
       fetchDirectRestData(currentDbUrl, currentPasscode);
     } else {
-      alert('通報失敗，請確認網路與連線密碼。');
+      alert('通報失敗，請確認網路連線。');
     }
   })
   .catch(err => {
