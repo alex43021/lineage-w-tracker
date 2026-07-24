@@ -1,0 +1,669 @@
+// Global State Variables
+let db = null;
+let firebaseApp = null;
+let currentPasscode = "123456789";
+let currentDbUrl = "https://wchat-6ea90-default-rtdb.asia-southeast1.firebasedatabase.app/";
+let bossStates = {};
+let bossRules = [];
+let chatHistory = [];
+let localTimers = {};
+let notifiedSpawns = new Set(); // Prevent duplicate 5-minute notifications for the same spawn
+let soundEnabled = true;
+let notifyEnabled = true;
+let currentBossFilter = "all";
+let currentChatFilter = "all";
+let selectedBossForReport = null;
+
+// Web Audio Context for synthesized notification chimes
+let audioCtx = None;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+      audioCtx = new AudioContext();
+    }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+// Play pleasant double chime notification sound
+function playWarningChime() {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    
+    // First tone (E5 - 659Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(659.25, now);
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.4);
+
+    // Second tone (A5 - 880Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.15);
+    gain2.gain.setValueAtTime(0.2, now + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.15);
+    osc2.stop(now + 0.65);
+  } catch (e) {
+    console.log("Audio chime playback error:", e);
+  }
+}
+
+// Register PWA Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(reg => console.log('PWA Service Worker registered:', reg.scope))
+      .catch(err => console.error('Service Worker registration failed:', err));
+  });
+}
+
+// Initialize on DOM Ready
+document.addEventListener('DOMContentLoaded', () => {
+  setupUIEventListeners();
+  initTimelineScale();
+  
+  // Start 1-second interval timer for live countdowns & timeline indicator
+  setInterval(tickRealtimeLoop, 1000);
+  
+  loadConfigAndConnect();
+});
+
+// Load configuration & connect to Firebase
+async function loadConfigAndConnect() {
+  try {
+    const response = await fetch('data/firebase_config.json');
+    if (response.ok) {
+      const config = await response.json();
+      currentDbUrl = config.databaseURL || currentDbUrl;
+      currentPasscode = config.passcode || currentPasscode;
+    }
+  } catch (e) {
+    console.log("data/firebase_config.json not found, using defaults or localStorage.");
+  }
+
+  // Check localStorage overrides
+  const savedUrl = localStorage.getItem('lw_db_url');
+  const savedCode = localStorage.getItem('lw_passcode');
+  if (savedUrl) currentDbUrl = savedUrl;
+  if (savedCode) currentPasscode = savedCode;
+
+  // Pre-fill modal fields
+  document.getElementById('dbUrlInput').value = currentDbUrl;
+  document.getElementById('dbPasscodeInput').value = currentPasscode;
+
+  if (currentDbUrl) {
+    initFirebase(currentDbUrl, currentPasscode);
+  } else {
+    showModal('settingsModal');
+  }
+}
+
+// Initialize Firebase Realtime Database
+function initFirebase(url, passcode) {
+  updateConnectionStatus('connecting');
+
+  if (db) {
+    db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).off();
+    db.ref(`lineage_w_tracker/${currentPasscode}/chat_history`).off();
+    db.ref(`lineage_w_tracker/${currentPasscode}/boss_rules`).off();
+  }
+
+  try {
+    if (firebaseApp) {
+      firebaseApp.delete();
+    }
+
+    firebaseApp = firebase.initializeApp({ databaseURL: url }, "LW-Tracker-" + Date.now());
+    db = firebaseApp.database();
+
+    db.ref('.info/connected').on('value', (snap) => {
+      if (snap.val() === true) {
+        updateConnectionStatus('online');
+        localStorage.setItem('lw_db_url', url);
+        localStorage.setItem('lw_passcode', passcode);
+        currentDbUrl = url;
+        currentPasscode = passcode;
+
+        startSyncListeners();
+      } else {
+        updateConnectionStatus('offline');
+      }
+    });
+  } catch (e) {
+    console.error("Firebase init failed:", e);
+    updateConnectionStatus('offline');
+  }
+}
+
+// Start realtime sync listeners for boss_states and chat_history
+function startSyncListeners() {
+  if (!db) return;
+
+  // 1. Sync BOSS States
+  db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).on('value', (snapshot) => {
+    const data = snapshot.val();
+    bossStates = data || {};
+    renderBossGrid();
+    updateTimeline();
+  });
+
+  // 2. Sync BOSS Rules
+  db.ref(`lineage_w_tracker/${currentPasscode}/boss_rules`).on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (Array.isArray(data)) {
+      bossRules = data;
+    }
+  });
+
+  // 3. Sync Chat History
+  db.ref(`lineage_w_tracker/${currentPasscode}/chat_history`).on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (Array.isArray(data)) {
+      chatHistory = data;
+      renderChatLog();
+    }
+  });
+}
+
+// Connection Status Indicator
+function updateConnectionStatus(status) {
+  const statusEl = document.getElementById('connectionStatus');
+  const textEl = statusEl.querySelector('.status-text');
+
+  statusEl.className = 'status-badge';
+  if (status === 'online') {
+    statusEl.classList.add('status-online');
+    textEl.textContent = '雲端連線中';
+  } else if (status === 'connecting') {
+    statusEl.classList.add('status-offline');
+    textEl.textContent = '連線中...';
+  } else {
+    statusEl.classList.add('status-offline');
+    textEl.textContent = '未連線';
+  }
+}
+
+/* ==========================================================================
+   DYNAMIC INTERACTIVE TIMELINE SYSTEM (-30m ~ NOW ~ +3h)
+   Total window = 210 minutes (3.5 hours).
+   NOW indicator is at 30/210 = 14.28%
+   ========================================================================== */
+
+function initTimelineScale() {
+  const scaleEl = document.getElementById('timelineScale');
+  if (!scaleEl) return;
+
+  // Scale labels: -30m, -15m, NOW, +15m, +30m, +1h, +1.5h, +2h, +2.5h, +3h
+  const ticks = [
+    { text: '-30m', pct: 0 },
+    { text: '-15m', pct: 7.14 },
+    { text: '目前 (NOW)', pct: 14.28, isNow: true },
+    { text: '+15m', pct: 21.42 },
+    { text: '+30m', pct: 28.57 },
+    { text: '+1h', pct: 42.85 },
+    { text: '+1.5h', pct: 57.14 },
+    { text: '+2h', pct: 71.42 },
+    { text: '+2.5h', pct: 85.71 },
+    { text: '+3h', pct: 100 }
+  ];
+
+  scaleEl.innerHTML = '';
+  ticks.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'scale-tick' + (t.isNow ? ' now-tick' : '');
+    div.style.left = `${t.pct}%`;
+    div.textContent = t.text;
+    scaleEl.appendChild(div);
+  });
+}
+
+function updateTimeline() {
+  const layer = document.getElementById('timelineMarkersLayer');
+  const nowInd = document.getElementById('nowIndicator');
+  const nowText = document.getElementById('nowTimeText');
+
+  if (!layer) return;
+
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  if (nowText) {
+    nowText.textContent = now.toTimeString().split(' ')[0];
+  }
+
+  // Fixed NOW position at 14.28% (30 mins into 210 min scale)
+  const nowPct = 14.28;
+  if (nowInd) {
+    nowInd.style.left = `${nowPct}%`;
+  }
+
+  const windowStartMs = nowMs - (30 * 60 * 1000); // -30m
+  const windowEndMs = nowMs + (180 * 60 * 1000);  // +180m (3h)
+  const totalWindowMs = 210 * 60 * 1000;
+
+  layer.innerHTML = '';
+
+  Object.values(bossStates).forEach(boss => {
+    let targetTimeMs = null;
+    let isSpawnEvent = true;
+
+    if (boss.next_spawn_time) {
+      targetTimeMs = new Date(boss.next_spawn_time).getTime();
+    } else if (boss.last_death_time) {
+      targetTimeMs = new Date(boss.last_death_time).getTime();
+      isSpawnEvent = false;
+    }
+
+    if (!targetTimeMs || isNaN(targetTimeMs)) return;
+
+    // Check if target time is within the 3.5 hour window
+    if (targetTimeMs >= windowStartMs && targetTimeMs <= windowEndMs) {
+      const pct = ((targetTimeMs - windowStartMs) / totalWindowMs) * 100;
+      const diffSec = Math.floor((targetTimeMs - nowMs) / 1000);
+
+      const marker = document.createElement('div');
+      marker.className = 'timeline-marker';
+      marker.style.left = `${pct}%`;
+
+      // Determine marker status class
+      let statusClass = 'marker-future';
+      if (diffSec < 0) {
+        statusClass = 'marker-past';
+      } else if (diffSec <= 300) { // < 5 mins
+        statusClass = 'marker-warning';
+      } else if (diffSec <= 1800) { // < 30 mins
+        statusClass = 'marker-soon';
+      }
+
+      marker.classList.add(statusClass);
+
+      const timeStr = new Date(targetTimeMs).toTimeString().substring(0, 5);
+      marker.innerHTML = `
+        <div class="marker-content">
+          <div class="marker-dot"></div>
+          <div class="marker-label">${boss.name} ${timeStr}</div>
+        </div>
+      `;
+
+      marker.addEventListener('click', () => {
+        highlightBossCard(boss.name);
+      });
+
+      layer.appendChild(marker);
+    }
+  });
+}
+
+function highlightBossCard(bossName) {
+  const cards = document.querySelectorAll('.boss-card');
+  cards.forEach(card => {
+    if (card.dataset.bossName === bossName) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('warning-card');
+      setTimeout(() => card.classList.remove('warning-card'), 2500);
+    }
+  });
+}
+
+/* ==========================================================================
+   5-MINUTE ADVANCE WARNING SYSTEM (5分鐘前推播與聲音)
+   ========================================================================== */
+
+function checkAdvanceWarnings(nowMs) {
+  Object.values(bossStates).forEach(boss => {
+    if (!boss.next_spawn_time) return;
+
+    const spawnMs = new Date(boss.next_spawn_time).getTime();
+    if (isNaN(spawnMs)) return;
+
+    const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+
+    // Trigger warning when BOSS is between 1s and 300s (5 minutes) away
+    if (diffSec > 0 && diffSec <= 300) {
+      const spawnKey = `${boss.name}_${boss.next_spawn_time}`;
+      if (!notifiedSpawns.has(spawnKey)) {
+        notifiedSpawns.add(spawnKey);
+        triggerBoss5MinWarning(boss, diffSec);
+      }
+    }
+  });
+}
+
+function triggerBoss5MinWarning(boss, secondsLeft) {
+  const minsLeft = Math.ceil(secondsLeft / 60);
+  const spawnTimeStr = new Date(boss.next_spawn_time).toTimeString().substring(0, 5);
+  const title = `🔔 [BOSS 預警] ${boss.name}`;
+  const body = `即將在 ${minsLeft} 分鐘後 (${spawnTimeStr}) 出現！請血盟成員準備！`;
+
+  // 1. Play Audio Chime
+  playWarningChime();
+
+  // 2. Trigger System / PWA Notification if enabled
+  if (notifyEnabled && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: title,
+          body: body
+        });
+      } else {
+        new Notification(title, {
+          body: body,
+          icon: './icons/icon-192.png',
+          tag: boss.name
+        });
+      }
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification(title, { body: body });
+        }
+      });
+    }
+  }
+}
+
+/* ==========================================================================
+   REALTIME LOOP (Runs every second)
+   ========================================================================== */
+
+function tickRealtimeLoop() {
+  const nowMs = Date.now();
+
+  // 1. Check 5-minute advance warnings
+  checkAdvanceWarnings(nowMs);
+
+  // 2. Update dynamic timeline
+  updateTimeline();
+
+  // 3. Update Boss Countdown Card Display Timers
+  updateCardCountdowns(nowMs);
+}
+
+function updateCardCountdowns(nowMs) {
+  const cards = document.querySelectorAll('.boss-card');
+  cards.forEach(card => {
+    const bossName = card.dataset.bossName;
+    const boss = bossStates[bossName];
+    if (!boss) return;
+
+    const timerEl = card.querySelector('.countdown-text');
+    const statusEl = card.querySelector('.boss-status-label');
+    if (!timerEl) return;
+
+    if (boss.next_spawn_time) {
+      const spawnMs = new Date(boss.next_spawn_time).getTime();
+      const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+
+      if (diffSec > 0) {
+        const m = Math.floor(diffSec / 60);
+        const s = diffSec % 60;
+        timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+        if (diffSec <= 300) {
+          card.classList.add('warning-card');
+        } else {
+          card.classList.remove('warning-card');
+        }
+      } else {
+        timerEl.textContent = '已重生';
+        if (statusEl) statusEl.textContent = '已重生';
+        card.classList.remove('warning-card');
+      }
+    }
+  });
+}
+
+/* ==========================================================================
+   BOSS GRID & CARDS RENDERING
+   ========================================================================== */
+
+function renderBossGrid() {
+  const grid = document.getElementById('bossGrid');
+  const countBadge = document.getElementById('bossCountBadge');
+  if (!grid) return;
+
+  const bosses = Object.values(bossStates);
+  if (countBadge) countBadge.textContent = `${bosses.length} 個`;
+
+  if (bosses.length === 0) {
+    grid.innerHTML = '<div class="loading-state">尚無 BOSS 時間狀態資料</div>';
+    return;
+  }
+
+  // Filter bosses based on current selection
+  let filtered = bosses;
+  const nowMs = Date.now();
+
+  if (currentBossFilter === 'soon') {
+    filtered = bosses.filter(b => {
+      if (!b.next_spawn_time) return false;
+      const diffMs = new Date(b.next_spawn_time).getTime() - nowMs;
+      return diffMs > 0 && diffMs <= 30 * 60 * 1000;
+    });
+  } else if (currentBossFilter === 'alive') {
+    filtered = bosses.filter(b => b.status === 'alive' || (b.next_spawn_time && new Date(b.next_spawn_time).getTime() <= nowMs));
+  }
+
+  // Sort by next_spawn_time ascending
+  filtered.sort((a, b) => {
+    const tA = a.next_spawn_time ? new Date(a.next_spawn_time).getTime() : Infinity;
+    const tB = b.next_spawn_time ? new Date(b.next_spawn_time).getTime() : Infinity;
+    return tA - tB;
+  });
+
+  grid.innerHTML = '';
+  filtered.forEach(boss => {
+    const card = document.createElement('div');
+    const stateClass = `state-${boss.status || 'unknown'}`;
+    card.className = `boss-card ${stateClass}`;
+    card.dataset.bossName = boss.name;
+
+    const lastDeathStr = boss.last_death_time ? new Date(boss.last_death_time).toTimeString().substring(0, 5) : '--:--';
+    const nextSpawnStr = boss.next_spawn_time ? new Date(boss.next_spawn_time).toTimeString().substring(0, 5) : '--:--';
+    const statusText = boss.status === 'alive' ? '已出現' : (boss.status === 'dead' ? '倒數中' : '未知');
+
+    card.innerHTML = `
+      <div class="boss-info">
+        <span class="boss-name">👹 ${boss.name}</span>
+        <span class="boss-status-label">${statusText}</span>
+      </div>
+      <div class="boss-timer-container">
+        <div class="countdown-text">--:--</div>
+      </div>
+      <div class="boss-time-details">
+        <div class="time-row"><span>預計重生：</span><strong>${nextSpawnStr}</strong></div>
+        <div class="time-row"><span>上次死亡：</span><span>${lastDeathStr} (${boss.reported_by || '系統'})</span></div>
+      </div>
+      <button class="btn btn-secondary btn-full report-btn" onclick="openReportModal('${boss.name}')">
+        ⚔️ 手動通報王死
+      </button>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+/* ==========================================================================
+   CHAT LOG RENDERING
+   ========================================================================== */
+
+function renderChatLog() {
+  const box = document.getElementById('chatBox');
+  if (!box) return;
+
+  if (!chatHistory || chatHistory.length === 0) {
+    box.innerHTML = '<div class="loading-state">目前無系統對話紀錄</div>';
+    return;
+  }
+
+  const searchVal = (document.getElementById('chatSearchInput')?.value || '').toLowerCase();
+
+  box.innerHTML = '';
+  chatHistory.slice().reverse().forEach(line => {
+    if (searchVal && !line.toLowerCase().includes(searchVal)) return;
+
+    const isBoss = line.includes('BOSS') || line.includes('★');
+    if (currentChatFilter === 'boss' && !isBoss) return;
+
+    const item = document.createElement('div');
+    item.className = `chat-msg ${isBoss ? 'boss-msg' : ''}`;
+
+    const tsMatch = line.match(/^(\[\d{2}:\d{2}(:\d{2})?\])\s*(.*)$/);
+    if (tsMatch) {
+      item.innerHTML = `
+        <span class="msg-time">${tsMatch[1]}</span>
+        ${isBoss ? '<span class="msg-badge">★ BOSS</span>' : ''}
+        <span class="msg-text">${tsMatch[3]}</span>
+      `;
+    } else {
+      item.innerHTML = `<span class="msg-text">${line}</span>`;
+    }
+    box.appendChild(item);
+  });
+}
+
+/* ==========================================================================
+   MANUAL REPORT MODAL & EVENT LISTENERS
+   ========================================================================== */
+
+function openReportModal(bossName) {
+  selectedBossForReport = bossName;
+  document.getElementById('reportBossName').textContent = `通報王怪：${bossName}`;
+  showModal('reportModal');
+}
+
+function setupUIEventListeners() {
+  // Settings Button
+  document.getElementById('settingsBtn')?.addEventListener('click', () => showModal('settingsModal'));
+  document.getElementById('closeSettingsBtn')?.addEventListener('click', () => hideModal('settingsModal'));
+
+  // Sound Toggle Button
+  document.getElementById('soundToggleBtn')?.addEventListener('click', (e) => {
+    soundEnabled = !soundEnabled;
+    const btn = e.currentTarget;
+    btn.classList.toggle('active', soundEnabled);
+    btn.querySelector('.pill-text').textContent = soundEnabled ? '音效開啟' : '音效關閉';
+    if (soundEnabled) playWarningChime();
+  });
+
+  // Notification Toggle Button
+  document.getElementById('notifyToggleBtn')?.addEventListener('click', (e) => {
+    notifyEnabled = !notifyEnabled;
+    const btn = e.currentTarget;
+    btn.classList.toggle('active', notifyEnabled);
+    btn.querySelector('.pill-text').textContent = notifyEnabled ? '5分鐘預警' : '預警關閉';
+
+    if (notifyEnabled && 'Notification' in window && Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+  });
+
+  // Boss Filter Buttons
+  document.querySelectorAll('[data-boss-filter]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('[data-boss-filter]').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      currentBossFilter = e.target.dataset.bossFilter;
+      renderBossGrid();
+    });
+  });
+
+  // Chat Filter Buttons
+  document.querySelectorAll('[data-channel]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('[data-channel]').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      currentChatFilter = e.target.dataset.channel;
+      renderChatLog();
+    });
+  });
+
+  // Chat Search Input
+  document.getElementById('chatSearchInput')?.addEventListener('input', renderChatLog);
+
+  // Manual Report Form Submission
+  document.getElementById('closeReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
+  document.getElementById('cancelReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
+
+  document.getElementById('submitReportBtn')?.addEventListener('click', submitManualReport);
+
+  // Settings Save Button
+  document.getElementById('saveSettingsBtn')?.addEventListener('click', () => {
+    const url = document.getElementById('dbUrlInput').value.trim();
+    const code = document.getElementById('dbPasscodeInput').value.trim();
+    if (url) {
+      initFirebase(url, code);
+      hideModal('settingsModal');
+    }
+  });
+
+  // Test Push Notification Button
+  document.getElementById('testPushBtn')?.addEventListener('click', () => {
+    playWarningChime();
+    triggerBoss5MinWarning({ name: "巴風特 (測試預警)", next_spawn_time: new Date(Date.now() + 295000).toISOString() }, 295);
+  });
+}
+
+function submitManualReport() {
+  if (!db || !selectedBossForReport) return;
+
+  const reporterName = document.getElementById('reporterName').value.trim() || '成員';
+  const passcode = document.getElementById('passcode').value.trim();
+  const timeType = document.querySelector('input[name="timeType"]:checked').value;
+  let eventTimeIso = new Date().toISOString();
+
+  if (timeType === 'custom') {
+    const customVal = document.getElementById('customTime').value;
+    if (customVal) {
+      const parts = customVal.split(':');
+      const d = new Date();
+      d.setHours(parseInt(parts[0]), int(parts[1]), 0, 0);
+      eventTimeIso = d.toISOString();
+    }
+  }
+
+  const reportId = 'rep_' + Date.now();
+  const reportData = {
+    boss_name: selectedBossForReport,
+    reported_by: reporterName,
+    passcode: passcode,
+    timestamp: eventTimeIso,
+    status: 'dead'
+  };
+
+  db.ref(`lineage_w_tracker/${currentPasscode}/reports/${reportId}`).set(reportData, (err) => {
+    if (err) {
+      alert('通報失敗：' + err.message);
+    } else {
+      alert(`🎉 成功通報 ${selectedBossForReport} 已擊殺！系統將自動廣播給所有用戶。`);
+      hideModal('reportModal');
+    }
+  });
+}
+
+function showModal(id) {
+  document.getElementById(id)?.classList.add('show');
+}
+function hideModal(id) {
+  document.getElementById(id)?.classList.remove('show');
+}

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>天堂W BOSS 監控與動態時間軸</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <!-- Firebase App & Realtime Database SDKs (Compat v9 CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <span class="logo-icon">⚔️</span>
+        <div class="header-titles">
+          <h1>天堂W BOSS 動態時間軸</h1>
+          <span class="header-sub">即時同步 · 5分鐘前推播預警 · 靜態網頁端</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Notification & Sound Quick Toggles -->
+        <button id="soundToggleBtn" class="toggle-pill-btn active" title="切換音效通知">
+          <span class="pill-icon">🔊</span>
+          <span class="pill-text">音效開啟</span>
+        </button>
+        <button id="notifyToggleBtn" class="toggle-pill-btn active" title="切換5分鐘推播預警">
+          <span class="pill-icon">🔔</span>
+          <span class="pill-text">5分鐘預警</span>
+        </button>
+
+        <div id="connectionStatus" class="status-badge status-offline">
+          <span class="status-dot"></span>
+          <span class="status-text">未連線</span>
+        </div>
+        <button id="settingsBtn" class="icon-btn" title="設定">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-main">
+      <!-- Top Section: Dynamic Timeline (-30m ~ +3h) -->
+      <section class="section timeline-section">
+        <div class="section-header">
+          <h2>⏳ 3.5小時 動態即時時間軸 <span class="timeline-subtitle">(-30分鐘 ~ 目前 ~ +3小時)</span></h2>
+          <div class="timeline-legend">
+            <span class="legend-item legend-warning"><span class="dot"></span>5分鐘內即將出現</span>
+            <span class="legend-item legend-soon"><span class="dot"></span>30分鐘內重生</span>
+            <span class="legend-item legend-future"><span class="dot"></span>3小時內預計</span>
+            <span class="legend-item legend-past"><span class="dot"></span>過去30分鐘</span>
+          </div>
+        </div>
+
+        <!-- Dynamic Timeline Component -->
+        <div class="timeline-wrapper">
+          <div class="timeline-track-container" id="timelineTrackContainer">
+            <!-- Scale Time Labels Header (-30m, -15m, NOW, +15m, +30m, +1h, +1.5h, +2h, +2.5h, +3h) -->
+            <div class="timeline-scale" id="timelineScale"></div>
+
+            <!-- Main Track Bar -->
+            <div class="timeline-bar" id="timelineBar">
+              <!-- Moving NOW Line Indicator -->
+              <div class="now-indicator" id="nowIndicator">
+                <div class="now-badge">目前 <span id="nowTimeText">00:00:00</span></div>
+                <div class="now-line"></div>
+              </div>
+
+              <!-- Boss Event Markers on Timeline -->
+              <div class="timeline-markers-layer" id="timelineMarkersLayer"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Grid Section: Boss Cards & Live Chat -->
+      <div class="main-bottom-grid">
+        <!-- Boss Cards Grid -->
+        <section class="section boss-section">
+          <div class="section-header">
+            <h2>👹 BOSS 重生倒數與狀態 <span id="bossCountBadge" class="count-badge">0 個</span></h2>
+            <div class="filter-controls">
+              <button class="filter-btn active" data-boss-filter="all">全部</button>
+              <button class="filter-btn" data-boss-filter="soon">即將出現 (&lt;30m)</button>
+              <button class="filter-btn" data-boss-filter="alive">未擊殺</button>
+            </div>
+          </div>
+          <div id="bossGrid" class="boss-grid">
+            <div class="loading-state">載入 BOSS 狀態中...</div>
+          </div>
+        </section>
+
+        <!-- Chat Log Monitoring -->
+        <section class="section chat-section">
+          <div class="section-header">
+            <h2>💬 遊戲內部廣播對話</h2>
+            <div class="chat-search">
+              <input type="text" id="chatSearchInput" placeholder="搜尋對話關鍵字...">
+            </div>
+          </div>
+          <div class="chat-filters">
+            <button class="filter-btn active" data-channel="all">全部</button>
+            <button class="filter-btn" data-channel="boss">★ BOSS訊息</button>
+            <button class="filter-btn" data-channel="system">系統</button>
+          </div>
+          <div id="chatBox" class="chat-box">
+            <div class="loading-state">載入對話紀錄中...</div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Manual Death Report Modal -->
+    <div id="reportModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>⚔️ 手動擊殺/死亡通報</h3>
+          <span class="close-btn" id="closeReportBtn">&times;</span>
+        </div>
+        <div class="modal-body">
+          <h4 id="reportBossName" class="report-boss-title">BOSS 名稱</h4>
+          <form id="reportForm">
+            <div class="form-group">
+              <label>死亡時間：</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="timeType" value="now" checked>
+                  剛剛擊殺 (現在)
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="timeType" value="custom">
+                  指定時間
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group" id="customTimeGroup" style="display: none;">
+              <label for="customTime">精確時間 (HH:MM)：</label>
+              <input type="time" id="customTime" class="form-control">
+            </div>
+
+            <div class="form-group">
+              <label for="passcode">血盟暗號 (密碼)：</label>
+              <input type="password" id="passcode" class="form-control" placeholder="請輸入血盟密碼">
+            </div>
+
+            <div class="form-group">
+              <label for="reporterName">您的通報稱呼：</label>
+              <input type="text" id="reporterName" class="form-control" placeholder="例如：勇者A" required>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelReportBtn">取消</button>
+          <button type="button" class="btn btn-primary" id="submitReportBtn">確定送出通報</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>⚙️ 系統與連線設定</h3>
+          <span class="close-btn" id="closeSettingsBtn">&times;</span>
+        </div>
+        <div class="modal-body">
+          <form id="settingsForm">
+            <div class="form-group">
+              <label for="dbUrlInput">Firebase Realtime Database URL:</label>
+              <input type="text" id="dbUrlInput" class="form-control" placeholder="https://xxxx-default-rtdb.firebaseio.com">
+            </div>
+            
+            <div class="form-group">
+              <label for="dbPasscodeInput">血盟暗號 / 密碼 (Passcode):</label>
+              <input type="password" id="dbPasscodeInput" class="form-control" placeholder="例如：123456789">
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="form-group notification-group">
+              <div class="notification-label">
+                <span class="icon">🔔</span>
+                <div>
+                  <strong>啟用 5 分鐘前推播預警</strong>
+                  <p class="help-block">當 BOSS 剩餘 5 分鐘重生時觸發手機與電腦推播</p>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="pushNotificationToggle" checked>
+                <span class="slider round"></span>
+              </label>
+            </div>
+            
+            <div class="form-group" id="testPushGroup">
+              <button type="button" class="btn btn-secondary btn-full" id="testPushBtn">發送測試預警通知</button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary btn-full" id="saveSettingsBtn">儲存設定並連結</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
