@@ -75,41 +75,20 @@
         </div>
       </section>
 
-      <!-- Bottom Grid Section: Boss Cards & Live Chat -->
-      <div class="main-bottom-grid">
-        <!-- Boss Cards Grid -->
-        <section class="section boss-section">
-          <div class="section-header">
-            <h2>👹 BOSS 重生倒數與狀態 <span id="bossCountBadge" class="count-badge">0 個</span></h2>
-            <div class="filter-controls">
-              <button class="filter-btn active" data-boss-filter="all">全部</button>
-              <button class="filter-btn" data-boss-filter="soon">即將出現 (&lt;30m)</button>
-              <button class="filter-btn" data-boss-filter="alive">未擊殺</button>
-            </div>
+      <!-- Boss Section (Full Width) -->
+      <section class="section boss-section">
+        <div class="section-header">
+          <h2>👹 BOSS 重生倒數與狀態 <span id="bossCountBadge" class="count-badge">0 個</span></h2>
+          <div class="filter-controls">
+            <button class="filter-btn active" data-boss-filter="all">全部</button>
+            <button class="filter-btn" data-boss-filter="soon">即將出現 (&lt;30m)</button>
+            <button class="filter-btn" data-boss-filter="alive">未擊殺</button>
           </div>
-          <div id="bossGrid" class="boss-grid">
-            <div class="loading-state">載入 BOSS 狀態中...</div>
-          </div>
-        </section>
-
-        <!-- Chat Log Monitoring -->
-        <section class="section chat-section">
-          <div class="section-header">
-            <h2>💬 遊戲內部廣播對話</h2>
-            <div class="chat-search">
-              <input type="text" id="chatSearchInput" placeholder="搜尋對話關鍵字...">
-            </div>
-          </div>
-          <div class="chat-filters">
-            <button class="filter-btn active" data-channel="all">全部</button>
-            <button class="filter-btn" data-channel="boss">★ BOSS訊息</button>
-            <button class="filter-btn" data-channel="system">系統</button>
-          </div>
-          <div id="chatBox" class="chat-box">
-            <div class="loading-state">載入對話紀錄中...</div>
-          </div>
-        </section>
-      </div>
+        </div>
+        <div id="bossGrid" class="boss-grid">
+          <div class="loading-state">載入 BOSS 狀態中...</div>
+        </div>
+      </section>
     </main>
 
     <!-- Manual Death Report Modal -->
