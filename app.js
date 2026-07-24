@@ -333,7 +333,7 @@ function highlightBossCard(bossName) {
 }
 
 /* ==========================================================================
-   5-MINUTE ADVANCE WARNING SYSTEM
+   5-MINUTE ADVANCE WARNING SYSTEM & BULLETPROOF WINDOWS TOAST NOTIFICATIONS
    ========================================================================== */
 
 function checkAdvanceWarnings(nowMs) {
@@ -354,6 +354,35 @@ function checkAdvanceWarnings(nowMs) {
       }
     }
   });
+}
+
+function sendNativeNotification(title, body, tag = null) {
+  if (!('Notification' in window)) return;
+
+  const iconUrl = new URL('icons/icon-192.png', window.location.href).href;
+  const options = {
+    body: body,
+    icon: iconUrl,
+    badge: iconUrl,
+    tag: tag || ('boss_notify_' + Date.now()),
+    requireInteraction: true, // Forces Windows 10/11 Action Center toast to pop up and stay
+    silent: false
+  };
+
+  // 1. Try Direct Notification API (Instant Windows Toast)
+  try {
+    const n = new Notification(title, options);
+    n.onclick = () => { window.focus(); };
+  } catch (e) {
+    console.log("Direct Notification API error:", e);
+  }
+
+  // 2. Try ServiceWorker Registration showNotification fallback
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification(title, options).catch(err => console.log("SW showNotification error:", err));
+    });
+  }
 }
 
 function requestAndTestNotification() {
@@ -378,20 +407,12 @@ function requestAndTestNotification() {
 }
 
 function triggerTestNotification() {
-  const title = "🔔 [BOSS 預警] 通知功能已成功啟用！";
-  const body = "當 BOSS 重生倒數剩餘 5 分鐘時，將會自動跳出 Windows 右下角通知提醒。";
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SHOW_NOTIFICATION',
-      title: title,
-      body: body
-    });
-  } else {
-    new Notification(title, {
-      body: body,
-      icon: './icons/icon-192.png'
-    });
-  }
+  const title = "🔔 [BOSS 預警] 通知功能測試成功！";
+  const body = "當 BOSS 重生倒數剩餘 5 分鐘時，將會自動發送 Windows 右下角通知提醒。";
+  
+  sendNativeNotification(title, body, "test_notification");
+
+  alert("🎉 已觸發測試推播！\n\n若 Windows 右下角仍未出現浮動橫幅，請確認：\n1. Windows 右下角【專注輔助 / 請勿打擾】是否已關閉。\n2. Windows 設定 ➔【系統】➔【通知與動作】中，【Google Chrome】是否有開啟！");
 }
 
 function triggerBoss5MinWarning(boss, secondsLeft) {
@@ -403,23 +424,9 @@ function triggerBoss5MinWarning(boss, secondsLeft) {
   // 1. Play Audio Chime
   playWarningChime();
 
-  // 2. Trigger System / PWA Notification if enabled
-  if (notifyEnabled && 'Notification' in window) {
-    if (Notification.permission === 'granted') {
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          title: title,
-          body: body
-        });
-      } else {
-        new Notification(title, {
-          body: body,
-          icon: './icons/icon-192.png',
-          tag: boss.name
-        });
-      }
-    }
+  // 2. Trigger Windows Native Toast / PWA Notification if enabled
+  if (notifyEnabled) {
+    sendNativeNotification(title, body, boss.name);
   }
 }
 
