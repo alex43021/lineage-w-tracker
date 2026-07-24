@@ -618,11 +618,56 @@ function renderBossGrid() {
         <div class="time-row"><span>預計重生：</span><strong>${nextSpawnStr}</strong></div>
         <div class="time-row"><span>上次死亡：</span><span>${lastDeathStr} (${boss.reported_by || '系統'})</span></div>
       </div>
-      <button class="btn btn-secondary btn-full report-btn" onclick="openReportModal('${boss.name}')">
-        ⚔️ 手動通報王死
-      </button>
+      <div class="boss-card-actions">
+        <button class="btn btn-quick-kill" onclick="quickReportKillNow('${boss.name}')" title="一鍵通報剛剛擊殺 (現在時間)">
+          ⚔️ 剛擊殺
+        </button>
+        <button class="btn btn-custom-time" onclick="openReportModal('${boss.name}')" title="指定歷史擊殺時間">
+          🕒 指定時間
+        </button>
+      </div>
     `;
     grid.appendChild(card);
+  });
+}
+
+function quickReportKillNow(bossName) {
+  if (!bossName) return;
+
+  const reporterName = '成員';
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const localIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+  const reportId = 'rep_' + Date.now();
+  const reportData = {
+    boss_name: bossName,
+    reported_by: reporterName,
+    time_type: 'now',
+    custom_time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    passcode: currentPasscode,
+    timestamp: localIso,
+    status: 'dead'
+  };
+
+  const cleanUrl = currentDbUrl.replace(/\/$/, "");
+  const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
+  
+  fetch(reportUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reportData)
+  })
+  .then(res => {
+    if (res.ok) {
+      alert(`🎉 已通報 ${bossName} 剛剛擊殺！系統已廣播時間給所有成員。`);
+      fetchDirectRestData(currentDbUrl, currentPasscode);
+    } else {
+      alert('通報失敗，請確認網路連線。');
+    }
+  })
+  .catch(err => {
+    alert('通報發生錯誤：' + err.message);
   });
 }
 
@@ -660,14 +705,14 @@ function populate24hTimeSelectors() {
 
 function openReportModal(bossName) {
   selectedBossForReport = bossName;
-  document.getElementById('reportBossName').textContent = `通報王怪：${bossName}`;
+  document.getElementById('reportBossName').textContent = `指定擊殺時間：${bossName}`;
 
-  // Default to "now" radio option
-  const nowRadio = document.querySelector('input[name="timeType"][value="now"]');
-  if (nowRadio) nowRadio.checked = true;
+  // Default to "custom" radio option when opening custom time modal
+  const customRadio = document.querySelector('input[name="timeType"][value="custom"]');
+  if (customRadio) customRadio.checked = true;
   
   const customGroup = document.getElementById('customTimeGroup');
-  if (customGroup) customGroup.style.display = 'none';
+  if (customGroup) customGroup.style.display = 'flex';
 
   // Populate & Pre-fill 24h hour and minute dropdowns
   populate24hTimeSelectors();
