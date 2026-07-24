@@ -630,6 +630,34 @@ function renderBossGrid() {
    MANUAL REPORT MODAL & EVENT LISTENERS
    ========================================================================== */
 
+function populate24hTimeSelectors() {
+  const hourSelect = document.getElementById('customHour');
+  const minuteSelect = document.getElementById('customMinute');
+  if (!hourSelect || !minuteSelect) return;
+
+  if (hourSelect.children.length === 0) {
+    hourSelect.innerHTML = '';
+    for (let i = 0; i < 24; i++) {
+      const opt = document.createElement('option');
+      const hh = String(i).padStart(2, '0');
+      opt.value = hh;
+      opt.textContent = `${hh} 時`;
+      hourSelect.appendChild(opt);
+    }
+  }
+
+  if (minuteSelect.children.length === 0) {
+    minuteSelect.innerHTML = '';
+    for (let i = 0; i < 60; i++) {
+      const opt = document.createElement('option');
+      const mm = String(i).padStart(2, '0');
+      opt.value = mm;
+      opt.textContent = `${mm} 分`;
+      minuteSelect.appendChild(opt);
+    }
+  }
+}
+
 function openReportModal(bossName) {
   selectedBossForReport = bossName;
   document.getElementById('reportBossName').textContent = `通報王怪：${bossName}`;
@@ -641,12 +669,15 @@ function openReportModal(bossName) {
   const customGroup = document.getElementById('customTimeGroup');
   if (customGroup) customGroup.style.display = 'none';
 
-  // Pre-fill time input with current HH:MM
+  // Populate & Pre-fill 24h hour and minute dropdowns
+  populate24hTimeSelectors();
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
-  const customInput = document.getElementById('customTime');
-  if (customInput) customInput.value = `${hh}:${mm}`;
+  const hourSelect = document.getElementById('customHour');
+  const minuteSelect = document.getElementById('customMinute');
+  if (hourSelect) hourSelect.value = hh;
+  if (minuteSelect) minuteSelect.value = mm;
 
   showModal('reportModal');
 }
@@ -674,13 +705,14 @@ function setupUIEventListeners() {
       if (customGroup) {
         if (e.target.value === 'custom') {
           customGroup.style.display = 'flex';
+          populate24hTimeSelectors();
           const now = new Date();
           const hh = String(now.getHours()).padStart(2, '0');
           const mm = String(now.getMinutes()).padStart(2, '0');
-          const customInput = document.getElementById('customTime');
-          if (customInput && !customInput.value) {
-            customInput.value = `${hh}:${mm}`;
-          }
+          const hourSelect = document.getElementById('customHour');
+          const minuteSelect = document.getElementById('customMinute');
+          if (hourSelect && !hourSelect.value) hourSelect.value = hh;
+          if (minuteSelect && !minuteSelect.value) minuteSelect.value = mm;
         } else {
           customGroup.style.display = 'none';
         }
@@ -726,12 +758,15 @@ function submitManualReport() {
 
   const reporterName = document.getElementById('reporterName')?.value?.trim() || '成員';
   const timeType = document.querySelector('input[name="timeType"]:checked')?.value || 'now';
-  const customVal = document.getElementById('customTime')?.value || '';
 
   const d = new Date();
-  if (timeType === 'custom' && customVal) {
-    const parts = customVal.split(':');
-    d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+  let customVal = '';
+
+  if (timeType === 'custom') {
+    const hh = document.getElementById('customHour')?.value || '00';
+    const mm = document.getElementById('customMinute')?.value || '00';
+    customVal = `${hh}:${mm}`;
+    d.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
   }
 
   const pad = (n) => String(n).padStart(2, '0');

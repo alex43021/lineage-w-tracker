@@ -128,9 +128,15 @@
               </div>
             </div>
             
+            <!-- Dedicated 24-Hour Selector (00~23 時 / 00~59 分) -->
             <div class="form-group" id="customTimeGroup" style="display: none; margin-top: 0.5rem;">
-              <label for="customTime">請選擇精確擊殺時間 (HH:MM)：</label>
-              <input type="time" id="customTime" class="form-control" style="font-size: 1.1rem; padding: 0.6rem;">
+              <label>請選擇精確擊殺時間 (24小時制)：</label>
+              <div class="time-24h-picker">
+                <select id="customHour" class="form-control select-24h"></select>
+                <span class="time-sep">:</span>
+                <select id="customMinute" class="form-control select-24h"></select>
+                <span class="time-unit">時 / 分</span>
+              </div>
             </div>
 
             <div class="form-group" style="margin-top: 0.5rem;">
