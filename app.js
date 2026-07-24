@@ -501,7 +501,7 @@ function checkAdvanceWarnings(nowMs) {
 }
 
 function sendNativeNotification(title, body, tag = null) {
-  if (!('Notification' in window)) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
   const iconUrl = new URL('icons/icon-192.png', window.location.href).href;
   const options = {
@@ -513,17 +513,21 @@ function sendNativeNotification(title, body, tag = null) {
     silent: false
   };
 
-  try {
-    const n = new Notification(title, options);
-    n.onclick = () => { window.focus(); };
-  } catch (e) {
-    console.log("Direct Notification API error:", e);
-  }
-
-  if ('serviceWorker' in navigator) {
+  // Use ServiceWorker showNotification ONLY if SW controller is active, else fallback to direct Notification API
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.ready.then(reg => {
-      reg.showNotification(title, options).catch(err => console.log("SW showNotification error:", err));
+      reg.showNotification(title, options).catch(err => {
+        console.log("SW showNotification error, falling back:", err);
+        new Notification(title, options);
+      });
     });
+  } else {
+    try {
+      const n = new Notification(title, options);
+      n.onclick = () => { window.focus(); };
+    } catch (e) {
+      console.log("Direct Notification API error:", e);
+    }
   }
 }
 
