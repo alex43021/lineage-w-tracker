@@ -520,7 +520,7 @@ function checkAdvanceWarnings(nowMs) {
   });
 }
 
-function sendNativeNotification(title, body, tag = null) {
+function sendNativeNotification(title, body, tag = null, autoCloseMs = null) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
   const iconUrl = new URL('icons/icon-192.png', window.location.href).href;
@@ -529,22 +529,38 @@ function sendNativeNotification(title, body, tag = null) {
     icon: iconUrl,
     badge: iconUrl,
     tag: tag || ('boss_notify_' + Date.now()),
-    requireInteraction: true,
+    requireInteraction: autoCloseMs ? false : true,
     silent: false
   };
 
-  // Use ServiceWorker showNotification ONLY if SW controller is active, else fallback to direct Notification API
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.ready.then(reg => {
-      reg.showNotification(title, options).catch(err => {
+      reg.showNotification(title, options).then(() => {
+        if (autoCloseMs && reg.getNotifications) {
+          setTimeout(() => {
+            reg.getNotifications({ tag: options.tag }).then(notifications => {
+              notifications.forEach(n => n.close());
+            });
+          }, autoCloseMs);
+        }
+      }).catch(err => {
         console.log("SW showNotification error, falling back:", err);
-        new Notification(title, options);
+        createDirectNotification();
       });
     });
   } else {
+    createDirectNotification();
+  }
+
+  function createDirectNotification() {
     try {
       const n = new Notification(title, options);
       n.onclick = () => { window.focus(); };
+      if (autoCloseMs) {
+        setTimeout(() => {
+          try { n.close(); } catch(e){}
+        }, autoCloseMs);
+      }
     } catch (e) {
       console.log("Direct Notification API error:", e);
     }
@@ -574,11 +590,11 @@ function requestAndTestNotification() {
 
 function triggerTestNotification() {
   const title = "🔔 [BOSS 預警] 通知功能測試成功！";
-  const body = "當 BOSS 重生倒數剩餘 5 分鐘時，將會自動發送 Windows 右下角通知提醒。";
+  const body = "當 BOSS 重生倒數剩餘 5 分鐘時，將會發送通知。此測試通知將於 8 秒後自動關閉。";
   
-  sendNativeNotification(title, body, "test_notification");
+  sendNativeNotification(title, body, "test_notification", 8000);
 
-  alert("🎉 已觸發測試推播！\n\n若 Windows 右下角仍未出現浮動橫幅，請確認：\n1. Windows 右下角【專注輔助 / 請勿打擾】是否已關閉。\n2. Windows 設定 ➔【系統】➔【通知與動作】中，【Google Chrome】是否有開啟！");
+  alert("🎉 已觸發測試推播！\n\n此測試通知將於 8 秒後自動關閉。\n若未收到，請確認 Windows【請勿打擾 / 專注輔助】與 Chrome 通知權限！");
 }
 
 function triggerBoss5MinWarning(boss, secondsLeft, spawnMs, displayName) {
@@ -586,10 +602,13 @@ function triggerBoss5MinWarning(boss, secondsLeft, spawnMs, displayName) {
   const spawnTimeStr = formatLocalTime24(spawnMs);
   const nameToUse = displayName || boss.name;
   const title = `🔔 [BOSS 預警] ${nameToUse}`;
-  const body = `即將在 ${minsLeft} 分鐘後 (${spawnTimeStr}) 出現！請血盟成員準備！`;
+  const body = `即將在 ${minsLeft} 分鐘後 (${spawnTimeStr}) 出現！王到時間後通知將自動關閉。`;
+
+  // Auto-close notification exactly when boss spawn time arrives!
+  const autoCloseMs = Math.max(5000, secondsLeft * 1000);
 
   if (notifyEnabled) {
-    sendNativeNotification(title, body, boss.name);
+    sendNativeNotification(title, body, boss.name, autoCloseMs);
   }
 }
 
