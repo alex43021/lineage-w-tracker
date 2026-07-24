@@ -521,7 +521,12 @@ function checkAdvanceWarnings(nowMs) {
 }
 
 function sendNativeNotification(title, body, tag = null, autoCloseMs = null) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!('Notification' in window)) return;
+
+  if (Notification.permission !== 'granted') {
+    console.log("Notification permission not granted:", Notification.permission);
+    return;
+  }
 
   const iconUrl = new URL('icons/icon-192.png', window.location.href).href;
   const options = {
@@ -530,10 +535,15 @@ function sendNativeNotification(title, body, tag = null, autoCloseMs = null) {
     badge: iconUrl,
     tag: tag || ('boss_notify_' + Date.now()),
     requireInteraction: autoCloseMs ? false : true,
-    silent: false
+    silent: false,
+    vibrate: [300, 100, 300, 100, 400],
+    data: {
+      url: window.location.href
+    }
   };
 
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+  // On Mobile PWA (iOS Safari & Android Chrome), ALWAYS use navigator.serviceWorker.ready
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
       reg.showNotification(title, options).then(() => {
         if (autoCloseMs && reg.getNotifications) {
@@ -544,9 +554,12 @@ function sendNativeNotification(title, body, tag = null, autoCloseMs = null) {
           }, autoCloseMs);
         }
       }).catch(err => {
-        console.log("SW showNotification error, falling back:", err);
+        console.log("SW showNotification error, trying fallback:", err);
         createDirectNotification();
       });
+    }).catch(err => {
+      console.log("SW ready error:", err);
+      createDirectNotification();
     });
   } else {
     createDirectNotification();
@@ -562,27 +575,27 @@ function sendNativeNotification(title, body, tag = null, autoCloseMs = null) {
         }, autoCloseMs);
       }
     } catch (e) {
-      console.log("Direct Notification API error:", e);
+      console.log("Direct Notification API error (expected on iOS):", e);
     }
   }
 }
 
 function requestAndTestNotification() {
   if (!('Notification' in window)) {
-    alert("您的瀏覽器不支援 Notification 系統推播功能。");
+    alert("您的手機或瀏覽器不支援系統推播通知。");
     return;
   }
 
   if (Notification.permission === 'granted') {
     triggerTestNotification();
   } else if (Notification.permission === 'denied') {
-    alert("【Chrome 通知目前被封鎖】\n\n請在 Chrome 網址列左側點擊 🔒 鎖頭圖示 ➔ 找到【通知 (Notifications)】➔ 選擇【允許 (Allow)】後重新整理頁面！");
+    alert("【手機通知權限被停用】\n\n- iPhone 用戶：請至 iPhone「設定」➔「通知」➔ 找到「天堂W BOSS」標籤並開啟「允許通知」。\n\n- Android 用戶：請至 Chrome 網址鎖頭圖示 ➔ 選擇「允許通知」。");
   } else {
     Notification.requestPermission().then(permission => {
       if (permission === 'granted') {
         triggerTestNotification();
       } else {
-        alert("已拒絕通知權限。若想開啟，請點擊 Chrome 網址列左側 🔒 鎖頭圖示允許通知。");
+        alert("未授權通知權限。若想開啟，請點擊上方「🔔 預警」按鈕！");
       }
     });
   }
