@@ -813,7 +813,47 @@ function openReportModal(bossName) {
   showModal('reportModal');
 }
 
+function centerTimelineNow() {
+  const wrapper = document.getElementById('timelineWrapper');
+  const track = document.getElementById('timelineTrackContainer');
+  if (!wrapper || !track) return;
+
+  const trackWidth = track.offsetWidth;
+  const wrapperWidth = wrapper.offsetWidth;
+  const nowPx = trackWidth * 0.1428;
+  const scrollPos = nowPx - (wrapperWidth / 2);
+
+  wrapper.scrollTo({
+    left: Math.max(0, scrollPos),
+    behavior: 'smooth'
+  });
+}
+
 function setupUIEventListeners() {
+  // Mobile Tab Switcher
+  document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.mobile-tab-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+
+      const tab = e.currentTarget.dataset.tab;
+      const timelineSec = document.getElementById('tabContentTimeline');
+      const bossSec = document.getElementById('tabContentBosses');
+
+      if (tab === 'timeline') {
+        if (timelineSec) timelineSec.classList.add('active');
+        if (bossSec) bossSec.classList.remove('active');
+        setTimeout(centerTimelineNow, 100);
+      } else if (tab === 'bosses') {
+        if (bossSec) bossSec.classList.add('active');
+        if (timelineSec) timelineSec.classList.remove('active');
+      }
+    });
+  });
+
+  // Center NOW Button
+  document.getElementById('centerNowBtn')?.addEventListener('click', centerTimelineNow);
+
   // PWA Mobile Install Button
   document.getElementById('pwaInstallBtn')?.addEventListener('click', async () => {
     if (deferredPrompt) {

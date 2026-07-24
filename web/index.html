@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>天堂W BOSS 監控與動態時間軸</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
@@ -12,30 +12,31 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- Header -->
+    <!-- Mobile Optimized App Header -->
     <header class="app-header">
       <div class="header-left">
         <span class="logo-icon">⚔️</span>
         <div class="header-titles">
-          <h1>天堂W BOSS 動態時間軸</h1>
-          <span class="header-sub">即時同步 · 5分鐘前推播預警</span>
+          <h1>天堂W BOSS 時間軸</h1>
+          <span class="header-sub">即時同步 · 5分鐘推播預警</span>
         </div>
       </div>
+      
       <div class="header-right">
         <!-- PWA Mobile Add to Home Screen Button -->
-        <button id="pwaInstallBtn" class="toggle-pill-btn btn-pwa-install" title="將此網頁加到手機主畫面 (安裝 App)">
+        <button id="pwaInstallBtn" class="toggle-pill-btn btn-pwa-install" title="加到手機桌面">
           <span class="pill-icon">📱</span>
-          <span class="pill-text">加到手機桌面</span>
+          <span class="pill-text">加到桌面</span>
         </button>
 
-        <!-- Notification Toggle & Direct Test Button -->
+        <!-- Notification Toggle & Test Button -->
         <button id="notifyToggleBtn" class="toggle-pill-btn active" title="切換5分鐘推播預警">
           <span class="pill-icon">🔔</span>
-          <span class="pill-text">5分鐘預警: 開啟</span>
+          <span class="pill-text">預警:開</span>
         </button>
-        <button id="testPushBtn" class="toggle-pill-btn btn-test-push" title="測試發送 Windows 右下角通知">
+        <button id="testPushBtn" class="toggle-pill-btn btn-test-push" title="測試推播">
           <span class="pill-icon">🧪</span>
-          <span class="pill-text">測試 Windows 推播</span>
+          <span class="pill-text">測試</span>
         </button>
 
         <div id="connectionStatus" class="status-badge status-offline">
@@ -45,24 +46,38 @@
       </div>
     </header>
 
-    <!-- Main Content -->
+    <!-- Mobile Segmented View Switcher (Only visible on mobile screens) -->
+    <div class="mobile-view-tabs" id="mobileViewTabs">
+      <button class="mobile-tab-btn active" data-tab="timeline">
+        ⏳ 即時時間軸 & 次序
+      </button>
+      <button class="mobile-tab-btn" data-tab="bosses">
+        👹 BOSS 列表 & 通報
+      </button>
+    </div>
+
+    <!-- Main Content Area -->
     <main class="app-main">
-      <!-- Top Section: Dynamic Timeline (-30m ~ +3h) -->
-      <section class="section timeline-section">
+      <!-- Section 1: Dynamic Timeline (-30m ~ +3h) -->
+      <section class="section timeline-section view-tab-content active" id="tabContentTimeline">
         <div class="section-header">
-          <h2>⏳ 3.5小時 動態即時時間軸 <span class="timeline-subtitle">(-30分鐘 ~ 目前 ~ +3小時)</span></h2>
-          <div class="timeline-legend">
-            <span class="legend-item legend-warning"><span class="dot"></span>5分鐘內即將出現</span>
-            <span class="legend-item legend-soon"><span class="dot"></span>30分鐘內重生</span>
-            <span class="legend-item legend-future"><span class="dot"></span>3小時內預計</span>
-            <span class="legend-item legend-past"><span class="dot"></span>過去30分鐘</span>
-          </div>
+          <h2>⏳ 3.5小時 動態時間軸 <span class="timeline-subtitle">(-30m ~ 目前 ~ +3h)</span></h2>
+          <button id="centerNowBtn" class="btn btn-center-now" title="定位到目前時間">
+            🎯 置中目前時間
+          </button>
         </div>
 
-        <!-- Dynamic Timeline Component -->
-        <div class="timeline-wrapper">
+        <div class="timeline-legend">
+          <span class="legend-item legend-warning"><span class="dot"></span>5分內預警</span>
+          <span class="legend-item legend-soon"><span class="dot"></span>30分內重生</span>
+          <span class="legend-item legend-future"><span class="dot"></span>3小時內</span>
+          <span class="legend-item legend-past"><span class="dot"></span>過去30分</span>
+        </div>
+
+        <!-- Dynamic Touch-Scrollable Timeline Component -->
+        <div class="timeline-wrapper" id="timelineWrapper">
           <div class="timeline-track-container" id="timelineTrackContainer">
-            <!-- Scale Time Labels Header (-30m, -15m, NOW, +15m, +30m, +1h, +1.5h, +2h, +2.5h, +3h) -->
+            <!-- Scale Time Labels Header (Dynamic 24H) -->
             <div class="timeline-scale" id="timelineScale"></div>
 
             <!-- Main Track Bar -->
@@ -88,10 +103,10 @@
         </div>
       </section>
 
-      <!-- Boss Section (Full Width) -->
-      <section class="section boss-section">
+      <!-- Section 2: Boss Grid Section (Full Width Cards) -->
+      <section class="section boss-section view-tab-content" id="tabContentBosses">
         <div class="section-header">
-          <h2>👹 BOSS 重生倒數與狀態 <span id="bossCountBadge" class="count-badge">0 個</span></h2>
+          <h2>👹 BOSS 重生倒數 <span id="bossCountBadge" class="count-badge">0 個</span></h2>
           <div class="filter-controls">
             <button class="filter-btn active" data-boss-filter="all">全部</button>
             <button class="filter-btn" data-boss-filter="soon">即將出現 (&lt;30m)</button>
@@ -108,28 +123,18 @@
     <div id="reportModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>⚔️ 手動擊殺/死亡通報</h3>
+          <h3>⚔️ 指定擊殺時間</h3>
           <span class="close-btn" id="closeReportBtn">&times;</span>
         </div>
         <div class="modal-body">
           <h4 id="reportBossName" class="report-boss-title">BOSS 名稱</h4>
           <form id="reportForm">
-            <div class="form-group">
-              <label>死亡時間：</label>
-              <div class="radio-group">
-                <label class="radio-label">
-                  <input type="radio" name="timeType" value="now" checked>
-                  剛剛擊殺 (現在)
-                </label>
-                <label class="radio-label">
-                  <input type="radio" name="timeType" value="custom">
-                  指定時間
-                </label>
-              </div>
+            <div class="form-group" style="display: none;">
+              <input type="radio" name="timeType" value="custom" checked>
             </div>
             
             <!-- Dedicated 24-Hour Selector (00~23 時 / 00~59 分) -->
-            <div class="form-group" id="customTimeGroup" style="display: none; margin-top: 0.5rem;">
+            <div class="form-group" id="customTimeGroup" style="margin-top: 0.5rem;">
               <label>請選擇精確擊殺時間 (24小時制)：</label>
               <div class="time-24h-picker">
                 <select id="customHour" class="form-control select-24h"></select>
@@ -139,7 +144,7 @@
               </div>
             </div>
 
-            <div class="form-group" style="margin-top: 0.5rem;">
+            <div class="form-group" style="margin-top: 0.75rem;">
               <label for="reporterName">您的通報稱呼：</label>
               <input type="text" id="reporterName" class="form-control" placeholder="例如：成員A" value="成員">
             </div>
