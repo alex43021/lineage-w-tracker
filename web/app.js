@@ -223,7 +223,7 @@ function getBossCooldownMins(bossName) {
 }
 
 function getEffectiveBossState(boss, nowMs = Date.now()) {
-  let isOverdue = boss.is_overdue || false;
+  let isOverdue = false;
   let displayName = boss.name;
 
   let spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
