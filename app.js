@@ -167,16 +167,53 @@ function updateConnectionStatus(status) {
 }
 
 /* ==========================================================================
-   AUTO-OVERDUE CALCULATION HELPER
-   If a boss reaches its next_spawn_time but nobody reported death or OCR didn't catch it,
-   automatically roll next_spawn_time forward to the next cycle (+cooldown) and append (過).
+   CROSS-BROWSER GUARANTEED LOCAL TIME PARSER
+   Prevents Safari / iOS / Chrome from parsing naive ISO strings as UTC
    ========================================================================== */
+
+function parseIsoToEpochMs(dateStr) {
+  if (!dateStr) return null;
+  if (typeof dateStr === 'number') return dateStr;
+
+  const str = String(dateStr).trim();
+  
+  // If string explicitly specifies Z or offset like +08:00
+  if (str.includes('Z') || /[+-]\d{2}:\d{2}$/.test(str)) {
+    const ms = Date.parse(str);
+    return isNaN(ms) ? null : ms;
+  }
+
+  // Parse YYYY-MM-DDTHH:mm:ss as LOCAL time explicitly
+  const match = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    const hour = parseInt(match[4], 10);
+    const min = parseInt(match[5], 10);
+    const sec = parseInt(match[6] || '0', 10);
+    return new Date(year, month, day, hour, min, sec).getTime();
+  }
+
+  const fallbackMs = Date.parse(str);
+  return isNaN(fallbackMs) ? null : fallbackMs;
+}
+
+function formatLocalTime24(dateObjOrIsoStr) {
+  if (!dateObjOrIsoStr) return '--:--';
+  const ms = parseIsoToEpochMs(dateObjOrIsoStr);
+  if (!ms) return '--:--';
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
 
 function getEffectiveBossState(boss, nowMs = Date.now()) {
   let isOverdue = boss.is_overdue || false;
   let displayName = boss.name;
 
-  let spawnMs = boss.next_spawn_time ? new Date(boss.next_spawn_time).getTime() : null;
+  let spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
   const cooldownMins = boss.cooldown_mins || 60;
   const cooldownMs = cooldownMins * 60 * 1000;
 
@@ -234,15 +271,6 @@ function initTimelineScale() {
   });
 }
 
-function formatLocalTime24(dateObjOrIsoStr) {
-  if (!dateObjOrIsoStr) return '--:--';
-  const d = new Date(dateObjOrIsoStr);
-  if (isNaN(d.getTime())) return '--:--';
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
-}
-
 function updateTimeline() {
   const layer = document.getElementById('timelineMarkersLayer');
   const nowInd = document.getElementById('nowIndicator');
@@ -278,8 +306,8 @@ function updateTimeline() {
 
     // 1. Check last_death_time (Past death event in -30m ~ +3h)
     if (boss.last_death_time) {
-      const deathMs = new Date(boss.last_death_time).getTime();
-      if (!isNaN(deathMs) && deathMs >= windowStartMs && deathMs <= windowEndMs) {
+      const deathMs = parseIsoToEpochMs(boss.last_death_time);
+      if (deathMs && deathMs >= windowStartMs && deathMs <= windowEndMs) {
         const pct = ((deathMs - windowStartMs) / totalWindowMs) * 100;
         const diffSec = Math.floor((deathMs - nowMs) / 1000);
         markerItems.push({
