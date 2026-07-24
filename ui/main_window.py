@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                                QTextEdit, QLabel, QGroupBox, QComboBox, QSpinBox,
                                QLineEdit, QTabWidget, QListWidget, QListWidgetItem,
                                QFileDialog, QMessageBox, QCheckBox, QStyle, QInputDialog, QTimeEdit,
-                               QGridLayout, QSplitter, QScrollArea, QFrame)
+                               QGridLayout, QSplitter, QScrollArea, QFrame, QSystemTrayIcon)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QTime, QSize
 from PySide6.QtGui import QImage, QPixmap, QFont, QColor
 
@@ -898,9 +898,24 @@ class MainWindow(QWidget):
         self.populate_rules_list()
         self.sync_boss_states_from_db()
 
+        # Initialize Windows Native System Tray Icon for bottom-right toast notifications
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
+        self.tray_icon.show()
+
         # Update preview timer (for when running)
         self.preview_timer = QTimer()
         self.preview_timer.timeout.connect(self.request_preview_update)
+
+    def show_windows_toast(self, title, message):
+        """Display native Windows bottom-right notification toast."""
+        if hasattr(self, 'tray_icon') and self.tray_icon and QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray_icon.showMessage(
+                title,
+                message,
+                QSystemTrayIcon.Information,
+                5000  # 5 seconds duration
+            )
 
     def sync_boss_states_from_db(self):
         """Fetch remote boss states from Firebase Realtime Database on startup."""

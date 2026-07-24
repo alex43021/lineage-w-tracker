@@ -205,6 +205,12 @@ body {
   position: relative;
   overflow-x: auto;
   padding: 0.5rem 0;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.timeline-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .timeline-track-container {
