@@ -172,6 +172,16 @@
         "飛龍群遭到討伐了。"
       ],
       "cooldown_mins": 240
+    },
+    {
+      "name": "大腳瑪幽",
+      "spawn_keywords": [
+        "雪碧守衛從深深的冬眠中甦醒了。"
+      ],
+      "death_keywords": [
+        "雪碧守衛往高雪壁隱藏了蹤跡。"
+      ],
+      "cooldown_mins": 240
     }
   ],
   "use_binarization": false,

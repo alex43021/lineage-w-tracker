@@ -253,7 +253,7 @@ function updateTimeline() {
           pct,
           diffSec,
           eventType: 'death',
-          displayText: `${boss.name} ${formatLocalTime24(deathMs)} (擊殺)`
+          displayText: boss.name
         });
       }
     }
