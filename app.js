@@ -15,7 +15,7 @@ let currentChatFilter = "all";
 let selectedBossForReport = null;
 
 // Web Audio Context for synthesized notification chimes
-let audioCtx = None;
+let audioCtx = null;
 
 function getAudioContext() {
   if (!audioCtx) {
@@ -93,7 +93,7 @@ async function loadConfigAndConnect() {
     const response = await fetch('data/firebase_config.json');
     if (response.ok) {
       const config = await response.json();
-      currentDbUrl = config.databaseURL || currentDbUrl;
+      currentDbUrl = (config.databaseURL || currentDbUrl).replace(/\/$/, "");
       currentPasscode = config.passcode || currentPasscode;
     }
   } catch (e) {
@@ -103,7 +103,7 @@ async function loadConfigAndConnect() {
   // Check localStorage overrides
   const savedUrl = localStorage.getItem('lw_db_url');
   const savedCode = localStorage.getItem('lw_passcode');
-  if (savedUrl) currentDbUrl = savedUrl;
+  if (savedUrl) currentDbUrl = savedUrl.replace(/\/$/, "");
   if (savedCode) currentPasscode = savedCode;
 
   // Pre-fill modal fields
@@ -117,40 +117,65 @@ async function loadConfigAndConnect() {
   }
 }
 
+// Direct REST API Fallback Fetch for Instant Rendering
+async function fetchDirectRestData(url, passcode) {
+  try {
+    const cleanUrl = url.replace(/\/$/, "");
+    const restUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_states.json`;
+    const res = await fetch(restUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        bossStates = data;
+        updateConnectionStatus('online');
+        renderBossGrid();
+        updateTimeline();
+      }
+    }
+  } catch (e) {
+    console.log("REST fallback fetch failed:", e);
+  }
+}
+
 // Initialize Firebase Realtime Database
 function initFirebase(url, passcode) {
+  currentDbUrl = url.replace(/\/$/, "");
+  currentPasscode = passcode || "123456789";
+
   updateConnectionStatus('connecting');
 
+  // 1. Direct REST fetch for immediate 200ms rendering
+  fetchDirectRestData(currentDbUrl, currentPasscode);
+
   if (db) {
-    db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).off();
-    db.ref(`lineage_w_tracker/${currentPasscode}/chat_history`).off();
-    db.ref(`lineage_w_tracker/${currentPasscode}/boss_rules`).off();
+    try {
+      db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).off();
+      db.ref(`lineage_w_tracker/${currentPasscode}/chat_history`).off();
+      db.ref(`lineage_w_tracker/${currentPasscode}/boss_rules`).off();
+    } catch(e){}
   }
 
   try {
     if (firebaseApp) {
-      firebaseApp.delete();
+      try { firebaseApp.delete(); } catch(e){}
     }
 
-    firebaseApp = firebase.initializeApp({ databaseURL: url }, "LW-Tracker-" + Date.now());
+    firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl }, "LW-Tracker-" + Date.now());
     db = firebaseApp.database();
 
+    // 2. Start realtime sync listeners immediately
+    startSyncListeners();
+
+    // 3. Monitor socket connection status
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
         updateConnectionStatus('online');
-        localStorage.setItem('lw_db_url', url);
-        localStorage.setItem('lw_passcode', passcode);
-        currentDbUrl = url;
-        currentPasscode = passcode;
-
-        startSyncListeners();
-      } else {
-        updateConnectionStatus('offline');
+        localStorage.setItem('lw_db_url', currentDbUrl);
+        localStorage.setItem('lw_passcode', currentPasscode);
       }
     });
   } catch (e) {
     console.error("Firebase init failed:", e);
-    updateConnectionStatus('offline');
   }
 }
 
@@ -161,9 +186,12 @@ function startSyncListeners() {
   // 1. Sync BOSS States
   db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).on('value', (snapshot) => {
     const data = snapshot.val();
-    bossStates = data || {};
-    renderBossGrid();
-    updateTimeline();
+    if (data && typeof data === 'object') {
+      bossStates = data;
+      updateConnectionStatus('online');
+      renderBossGrid();
+      updateTimeline();
+    }
   });
 
   // 2. Sync BOSS Rules
@@ -187,25 +215,24 @@ function startSyncListeners() {
 // Connection Status Indicator
 function updateConnectionStatus(status) {
   const statusEl = document.getElementById('connectionStatus');
+  if (!statusEl) return;
   const textEl = statusEl.querySelector('.status-text');
 
   statusEl.className = 'status-badge';
   if (status === 'online') {
     statusEl.classList.add('status-online');
-    textEl.textContent = '雲端連線中';
+    if (textEl) textEl.textContent = '雲端連線中';
   } else if (status === 'connecting') {
     statusEl.classList.add('status-offline');
-    textEl.textContent = '連線中...';
+    if (textEl) textEl.textContent = '連線中...';
   } else {
     statusEl.classList.add('status-offline');
-    textEl.textContent = '未連線';
+    if (textEl) textEl.textContent = '未連線';
   }
 }
 
 /* ==========================================================================
    DYNAMIC INTERACTIVE TIMELINE SYSTEM (-30m ~ NOW ~ +3h)
-   Total window = 210 minutes (3.5 hours).
-   NOW indicator is at 30/210 = 14.28%
    ========================================================================== */
 
 function initTimelineScale() {
@@ -264,13 +291,11 @@ function updateTimeline() {
 
   Object.values(bossStates).forEach(boss => {
     let targetTimeMs = null;
-    let isSpawnEvent = true;
 
     if (boss.next_spawn_time) {
       targetTimeMs = new Date(boss.next_spawn_time).getTime();
     } else if (boss.last_death_time) {
       targetTimeMs = new Date(boss.last_death_time).getTime();
-      isSpawnEvent = false;
     }
 
     if (!targetTimeMs || isNaN(targetTimeMs)) return;
@@ -325,7 +350,7 @@ function highlightBossCard(bossName) {
 }
 
 /* ==========================================================================
-   5-MINUTE ADVANCE WARNING SYSTEM (5分鐘前推播與聲音)
+   5-MINUTE ADVANCE WARNING SYSTEM
    ========================================================================== */
 
 function checkAdvanceWarnings(nowMs) {
@@ -390,13 +415,8 @@ function triggerBoss5MinWarning(boss, secondsLeft) {
 function tickRealtimeLoop() {
   const nowMs = Date.now();
 
-  // 1. Check 5-minute advance warnings
   checkAdvanceWarnings(nowMs);
-
-  // 2. Update dynamic timeline
   updateTimeline();
-
-  // 3. Update Boss Countdown Card Display Timers
   updateCardCountdowns(nowMs);
 }
 
@@ -625,10 +645,10 @@ function setupUIEventListeners() {
 }
 
 function submitManualReport() {
-  if (!db || !selectedBossForReport) return;
+  if (!selectedBossForReport) return;
 
+  const passcode = document.getElementById('passcode').value.trim() || currentPasscode;
   const reporterName = document.getElementById('reporterName').value.trim() || '成員';
-  const passcode = document.getElementById('passcode').value.trim();
   const timeType = document.querySelector('input[name="timeType"]:checked').value;
   let eventTimeIso = new Date().toISOString();
 
@@ -637,7 +657,7 @@ function submitManualReport() {
     if (customVal) {
       const parts = customVal.split(':');
       const d = new Date();
-      d.setHours(parseInt(parts[0]), int(parts[1]), 0, 0);
+      d.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
       eventTimeIso = d.toISOString();
     }
   }
@@ -651,13 +671,27 @@ function submitManualReport() {
     status: 'dead'
   };
 
-  db.ref(`lineage_w_tracker/${currentPasscode}/reports/${reportId}`).set(reportData, (err) => {
-    if (err) {
-      alert('通報失敗：' + err.message);
-    } else {
+  // REST PUT for guaranteed submission across all browsers
+  const cleanUrl = currentDbUrl.replace(/\/$/, "");
+  const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
+  
+  fetch(reportUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reportData)
+  })
+  .then(res => {
+    if (res.ok) {
       alert(`🎉 成功通報 ${selectedBossForReport} 已擊殺！系統將自動廣播給所有用戶。`);
       hideModal('reportModal');
+      // Re-fetch immediately
+      fetchDirectRestData(currentDbUrl, currentPasscode);
+    } else {
+      alert('通報失敗，請確認網路與連線密碼。');
     }
+  })
+  .catch(err => {
+    alert('通報發生錯誤：' + err.message);
   });
 }
 
