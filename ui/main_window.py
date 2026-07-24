@@ -981,8 +981,32 @@ class MainWindow(QWidget):
         try:
             with open(self.settings_path, 'w', encoding='utf-8') as f:
                 json.dump(self.settings, f, indent=2, ensure_ascii=False)
+            self.write_pwa_firebase_config()
         except Exception as e:
             logger.error(f"Failed to save settings: {e}")
+
+    def write_pwa_firebase_config(self):
+        """Export current Firebase URL & Passcode to data/firebase_config.json for static hosting & GitHub Pages."""
+        try:
+            data = {
+                "databaseURL": self.settings.get("firebase_url", ""),
+                "passcode": self.settings.get("firebase_passcode", "123456789")
+            }
+            # Root data dir
+            root_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+            os.makedirs(root_data_dir, exist_ok=True)
+            with open(os.path.join(root_data_dir, "firebase_config.json"), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            # Web subfolder data dir
+            web_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "data")
+            os.makedirs(web_data_dir, exist_ok=True)
+            with open(os.path.join(web_data_dir, "firebase_config.json"), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            logger.info("Exported data/firebase_config.json successfully.")
+        except Exception as e:
+            logger.error(f"Failed to write data/firebase_config.json: {e}")
 
     def init_ui(self):
         root_layout = QVBoxLayout(self)

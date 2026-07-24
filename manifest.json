@@ -1,0 +1,22 @@
+{
+  "name": "天堂W 王怪計時與對話監控",
+  "short_name": "天堂W監控",
+  "description": "即時追蹤天堂W王怪死亡重生時間與遊戲內對話監控系統",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1e1e24",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
