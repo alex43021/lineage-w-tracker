@@ -30,7 +30,7 @@ if ('serviceWorker' in navigator) {
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
-  initTimelineScale();
+  updateTimelineScale();
   
   // Start 1-second interval timer for live countdowns & timeline indicator
   setInterval(tickRealtimeLoop, 1000);
@@ -258,30 +258,32 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
    Completing ALL boss events in the 3.5-hour range (-30m ~ +3h) with 3-tier staggering!
    ========================================================================== */
 
-function initTimelineScale() {
+function updateTimelineScale(nowMs = Date.now()) {
   const scaleEl = document.getElementById('timelineScale');
   if (!scaleEl) return;
 
-  // Scale labels: -30m, -15m, NOW, +15m, +30m, +1h, +1.5h, +2h, +2.5h, +3h
+  // Scale ticks displaying absolute 24-Hour clock times: -30m, -15m, NOW, +15m, +30m, +1h, +1.5h, +2h, +2.5h, +3h
   const ticks = [
-    { text: '-30m', pct: 0 },
-    { text: '-15m', pct: 7.14 },
-    { text: '目前 (NOW)', pct: 14.28, isNow: true },
-    { text: '+15m', pct: 21.42 },
-    { text: '+30m', pct: 28.57 },
-    { text: '+1h', pct: 42.85 },
-    { text: '+1.5h', pct: 57.14 },
-    { text: '+2h', pct: 71.42 },
-    { text: '+2.5h', pct: 85.71 },
-    { text: '+3h', pct: 100 }
+    { offsetMins: -30, pct: 0 },
+    { offsetMins: -15, pct: 7.14 },
+    { offsetMins: 0, pct: 14.28, isNow: true },
+    { offsetMins: 15, pct: 21.42 },
+    { offsetMins: 30, pct: 28.57 },
+    { offsetMins: 60, pct: 42.85 },
+    { offsetMins: 90, pct: 57.14 },
+    { offsetMins: 120, pct: 71.42 },
+    { offsetMins: 150, pct: 85.71 },
+    { offsetMins: 180, pct: 100 }
   ];
 
   scaleEl.innerHTML = '';
   ticks.forEach(t => {
+    const tickMs = nowMs + (t.offsetMins * 60 * 1000);
+    const timeStr = formatLocalTime24(tickMs);
     const div = document.createElement('div');
     div.className = 'scale-tick' + (t.isNow ? ' now-tick' : '');
     div.style.left = `${t.pct}%`;
-    div.textContent = t.text;
+    div.textContent = t.isNow ? `目前 ${timeStr}` : timeStr;
     scaleEl.appendChild(div);
   });
 }
@@ -295,6 +297,9 @@ function updateTimeline() {
 
   const now = new Date();
   const nowMs = now.getTime();
+
+  // Update 24H scale header labels
+  updateTimelineScale(nowMs);
 
   if (nowText) {
     nowText.textContent = now.toTimeString().split(' ')[0];
