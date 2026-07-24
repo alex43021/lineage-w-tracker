@@ -10,6 +10,13 @@ let notifiedSpawns = new Set(); // Prevent duplicate 5-minute notifications for 
 let notifyEnabled = true;
 let currentBossFilter = "all";
 let selectedBossForReport = null;
+let deferredPrompt = null;
+
+// Intercept browser PWA install prompt
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
 
 // Register PWA Service Worker
 if ('serviceWorker' in navigator) {
@@ -601,6 +608,21 @@ function openReportModal(bossName) {
 }
 
 function setupUIEventListeners() {
+  // PWA Mobile Install Button
+  document.getElementById('pwaInstallBtn')?.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User choice on PWA install: ${outcome}`);
+      deferredPrompt = null;
+    } else {
+      showModal('pwaModal');
+    }
+  });
+
+  document.getElementById('closePwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
+  document.getElementById('confirmPwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
+
   // Radio button toggle for time type in manual report modal
   document.querySelectorAll('input[name="timeType"]').forEach(radio => {
     radio.addEventListener('change', (e) => {

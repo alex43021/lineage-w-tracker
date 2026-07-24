@@ -22,7 +22,13 @@
         </div>
       </div>
       <div class="header-right">
-        <!-- Notification Toggle & Direct Test Button on Header -->
+        <!-- PWA Mobile Add to Home Screen Button -->
+        <button id="pwaInstallBtn" class="toggle-pill-btn btn-pwa-install" title="將此網頁加到手機主畫面 (安裝 App)">
+          <span class="pill-icon">📱</span>
+          <span class="pill-text">加到手機桌面</span>
+        </button>
+
+        <!-- Notification Toggle & Direct Test Button -->
         <button id="notifyToggleBtn" class="toggle-pill-btn active" title="切換5分鐘推播預警">
           <span class="pill-icon">🔔</span>
           <span class="pill-text">5分鐘預警: 開啟</span>
@@ -136,6 +142,32 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelReportBtn">取消</button>
           <button type="button" class="btn btn-primary" id="submitReportBtn">確定送出通報</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PWA Install Guidance Modal -->
+    <div id="pwaModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>📱 加到手機桌面 (安裝 PWA App)</h3>
+          <span class="close-btn" id="closePwaBtn">&times;</span>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+          <div class="pwa-guide-item">
+            <strong style="color: #60a5fa;">🍏 iPhone / iPad (Safari) 步驟：</strong>
+            <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 0.3rem;">1. 點擊 Safari 瀏覽器下方中間的 <strong>分享圖示 ( <span style="font-size: 1.2rem; color: #60a5fa;">⎋</span> )</strong>。</p>
+            <p style="font-size: 0.85rem; color: #cbd5e1;">2. 往下拉找到並點擊 <strong>「加入主畫面 (Add to Home Screen)」</strong> 即可完成安裝！</p>
+          </div>
+          <div class="divider"></div>
+          <div class="pwa-guide-item">
+            <strong style="color: #34d399;">🤖 Android 手機 (Chrome) 步驟：</strong>
+            <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 0.3rem;">1. 點擊 Chrome 右上角的 <strong>三點選單 ( <span style="font-size: 1.1rem; color: #34d399;">⋮</span> )</strong>。</p>
+            <p style="font-size: 0.85rem; color: #cbd5e1;">2. 選擇 <strong>「安裝應用程式」</strong> 或 <strong>「新增至主畫面」</strong> 即可！</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary btn-full" id="confirmPwaBtn">我知道了</button>
         </div>
       </div>
     </div>
