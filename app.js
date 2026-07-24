@@ -168,7 +168,7 @@ function updateConnectionStatus(status) {
 
 /* ==========================================================================
    DYNAMIC INTERACTIVE TIMELINE SYSTEM (-30m ~ NOW ~ +3h)
-   Includes 3-Tier Vertical Marker Staggering to prevent text overlap!
+   Completing ALL boss events in the 3.5-hour range (-30m ~ +3h) with 3-tier staggering!
    ========================================================================== */
 
 function initTimelineScale() {
@@ -199,6 +199,15 @@ function initTimelineScale() {
   });
 }
 
+function formatLocalTime24(dateObjOrIsoStr) {
+  if (!dateObjOrIsoStr) return '--:--';
+  const d = new Date(dateObjOrIsoStr);
+  if (isNaN(d.getTime())) return '--:--';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 function updateTimeline() {
   const layer = document.getElementById('timelineMarkersLayer');
   const nowInd = document.getElementById('nowIndicator');
@@ -225,35 +234,74 @@ function updateTimeline() {
 
   layer.innerHTML = '';
 
-  // 1. Collect and calculate position percentage for all valid bosses
   const markerItems = [];
-  Object.values(bossStates).forEach(boss => {
-    let targetTimeMs = null;
 
-    if (boss.next_spawn_time) {
-      targetTimeMs = new Date(boss.next_spawn_time).getTime();
-    } else if (boss.last_death_time) {
-      targetTimeMs = new Date(boss.last_death_time).getTime();
+  // Evaluate EVERY boss for past death events AND future spawn cycles in the 3.5h window!
+  Object.values(bossStates).forEach(boss => {
+    const cooldownMins = boss.cooldown_mins || 60;
+    const cooldownMs = cooldownMins * 60 * 1000;
+
+    // 1. Check last_death_time (Past death event in -30m ~ +3h)
+    if (boss.last_death_time) {
+      const deathMs = new Date(boss.last_death_time).getTime();
+      if (!isNaN(deathMs) && deathMs >= windowStartMs && deathMs <= windowEndMs) {
+        const pct = ((deathMs - windowStartMs) / totalWindowMs) * 100;
+        const diffSec = Math.floor((deathMs - nowMs) / 1000);
+        markerItems.push({
+          boss,
+          targetTimeMs: deathMs,
+          pct,
+          diffSec,
+          eventType: 'death',
+          displayText: `${boss.name} ${formatLocalTime24(deathMs)} (擊殺)`
+        });
+      }
     }
 
-    if (!targetTimeMs || isNaN(targetTimeMs)) return;
+    // 2. Check next_spawn_time AND future recurring spawn cycles
+    if (boss.next_spawn_time) {
+      let spawnMs = new Date(boss.next_spawn_time).getTime();
+      if (!isNaN(spawnMs)) {
+        // Project all spawn cycles landing within +3 hours window
+        while (spawnMs <= windowEndMs) {
+          if (spawnMs >= windowStartMs) {
+            const pct = ((spawnMs - windowStartMs) / totalWindowMs) * 100;
+            const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+            markerItems.push({
+              boss,
+              targetTimeMs: spawnMs,
+              pct,
+              diffSec,
+              eventType: 'spawn',
+              displayText: `${boss.name} ${formatLocalTime24(spawnMs)}`
+            });
+          }
+          if (cooldownMs <= 0) break;
+          spawnMs += cooldownMs;
+        }
+      }
+    }
+  });
 
-    if (targetTimeMs >= windowStartMs && targetTimeMs <= windowEndMs) {
-      const pct = ((targetTimeMs - windowStartMs) / totalWindowMs) * 100;
-      const diffSec = Math.floor((targetTimeMs - nowMs) / 1000);
-      markerItems.push({ boss, targetTimeMs, pct, diffSec });
+  // Deduplicate marker items with same boss and exact same target time
+  const uniqueMarkers = [];
+  const seenKeys = new Set();
+  markerItems.forEach(item => {
+    const key = `${item.boss.name}_${item.eventType}_${item.targetTimeMs}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueMarkers.push(item);
     }
   });
 
   // Sort by position percentage ascending
-  markerItems.sort((a, b) => a.pct - b.pct);
+  uniqueMarkers.sort((a, b) => a.pct - b.pct);
 
-  // 2. Assign vertical tier (0, 1, 2) to adjacent close markers to prevent label overlap!
+  // Assign 3-tier vertical staggering (0, 1, 2) to adjacent pins to prevent horizontal overlap
   let currentTier = 0;
   let prevPct = -999;
-
-  markerItems.forEach(item => {
-    if (item.pct - prevPct < 8) { // If within 8% width of previous pin
+  uniqueMarkers.forEach(item => {
+    if (item.pct - prevPct < 7) {
       currentTier = (currentTier + 1) % 3;
     } else {
       currentTier = 0;
@@ -262,8 +310,8 @@ function updateTimeline() {
     item.tier = currentTier;
   });
 
-  // 3. Render markers with vertical tier classes
-  markerItems.forEach(item => {
+  // Render all unique markers
+  uniqueMarkers.forEach(item => {
     const marker = document.createElement('div');
     marker.className = `timeline-marker tier-${item.tier}`;
     marker.style.left = `${item.pct}%`;
@@ -279,11 +327,10 @@ function updateTimeline() {
 
     marker.classList.add(statusClass);
 
-    const timeStr = new Date(item.targetTimeMs).toTimeString().substring(0, 5);
     marker.innerHTML = `
       <div class="marker-content">
         <div class="marker-dot"></div>
-        <div class="marker-label">${item.boss.name} ${timeStr}</div>
+        <div class="marker-label">${item.displayText}</div>
       </div>
     `;
 
@@ -337,7 +384,7 @@ function renderSequenceQueue() {
     }
     card.className = itemClass;
 
-    const timeStr = new Date(item.spawnMs).toTimeString().substring(0, 5);
+    const timeStr = formatLocalTime24(item.spawnMs);
     let diffStr = '已重生';
     if (item.diffSec > 0) {
       const m = Math.floor(item.diffSec / 60);
@@ -404,11 +451,10 @@ function sendNativeNotification(title, body, tag = null) {
     icon: iconUrl,
     badge: iconUrl,
     tag: tag || ('boss_notify_' + Date.now()),
-    requireInteraction: true, // Forces Windows 10/11 Action Center toast to pop up and stay
+    requireInteraction: true,
     silent: false
   };
 
-  // 1. Try Direct Notification API (Instant Windows Toast)
   try {
     const n = new Notification(title, options);
     n.onclick = () => { window.focus(); };
@@ -416,7 +462,6 @@ function sendNativeNotification(title, body, tag = null) {
     console.log("Direct Notification API error:", e);
   }
 
-  // 2. Try ServiceWorker Registration showNotification fallback
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
       reg.showNotification(title, options).catch(err => console.log("SW showNotification error:", err));
@@ -456,11 +501,10 @@ function triggerTestNotification() {
 
 function triggerBoss5MinWarning(boss, secondsLeft) {
   const minsLeft = Math.ceil(secondsLeft / 60);
-  const spawnTimeStr = new Date(boss.next_spawn_time).toTimeString().substring(0, 5);
+  const spawnTimeStr = formatLocalTime24(boss.next_spawn_time);
   const title = `🔔 [BOSS 預警] ${boss.name}`;
   const body = `即將在 ${minsLeft} 分鐘後 (${spawnTimeStr}) 出現！請血盟成員準備！`;
 
-  // Trigger Windows Native Toast / PWA Notification if enabled
   if (notifyEnabled) {
     sendNativeNotification(title, body, boss.name);
   }
@@ -558,8 +602,8 @@ function renderBossGrid() {
     card.className = `boss-card ${stateClass}`;
     card.dataset.bossName = boss.name;
 
-    const lastDeathStr = boss.last_death_time ? new Date(boss.last_death_time).toTimeString().substring(0, 5) : '--:--';
-    const nextSpawnStr = boss.next_spawn_time ? new Date(boss.next_spawn_time).toTimeString().substring(0, 5) : '--:--';
+    const lastDeathStr = formatLocalTime24(boss.last_death_time);
+    const nextSpawnStr = formatLocalTime24(boss.next_spawn_time);
     const statusText = boss.status === 'alive' ? '已出現' : (boss.status === 'dead' ? '倒數中' : '未知');
 
     card.innerHTML = `
