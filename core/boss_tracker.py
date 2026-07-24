@@ -230,9 +230,34 @@ class BossTracker:
         state["next_spawn_time"] = next_spawn_str
         state["source"] = source
         state["reported_by"] = reporter
+        state["is_overdue"] = False
 
         logger.info(f"Recorded death for {boss_name} at {time_str} via {source}. Next spawn: {next_spawn_str}")
         return {"boss": boss_name, "type": "death", "time": time_str, "next_spawn": next_spawn_str, "source": source}
+
+    def check_and_roll_overdue_bosses(self, now=None):
+        """
+        If a boss reaches its next_spawn_time but nobody reported death or OCR didn't catch it,
+        automatically roll next_spawn_time forward to the next cycle (+cooldown_mins)
+        and mark is_overdue = True.
+        """
+        if not now:
+            now = datetime.now()
+
+        updated = False
+        for name, state in self.states.items():
+            if state.get("next_spawn_time"):
+                spawn_dt = self._parse_datetime(state["next_spawn_time"])
+                if spawn_dt and now > spawn_dt:
+                    cooldown = state.get("cooldown_mins", 60)
+                    cooldown_delta = timedelta(minutes=cooldown)
+                    curr = spawn_dt
+                    while curr <= now:
+                        curr += cooldown_delta
+                    state["next_spawn_time"] = curr.isoformat()
+                    state["is_overdue"] = True
+                    updated = True
+        return updated
 
     def process_manual_report(self, report_data):
         """

@@ -167,6 +167,41 @@ function updateConnectionStatus(status) {
 }
 
 /* ==========================================================================
+   AUTO-OVERDUE CALCULATION HELPER
+   If a boss reaches its next_spawn_time but nobody reported death or OCR didn't catch it,
+   automatically roll next_spawn_time forward to the next cycle (+cooldown) and append (過).
+   ========================================================================== */
+
+function getEffectiveBossState(boss, nowMs = Date.now()) {
+  let isOverdue = boss.is_overdue || false;
+  let displayName = boss.name;
+
+  let spawnMs = boss.next_spawn_time ? new Date(boss.next_spawn_time).getTime() : null;
+  const cooldownMins = boss.cooldown_mins || 60;
+  const cooldownMs = cooldownMins * 60 * 1000;
+
+  if (spawnMs && !isNaN(spawnMs)) {
+    if (spawnMs <= nowMs && boss.status !== 'alive') {
+      isOverdue = true;
+      // Auto roll forward to the next cycle until spawnMs > nowMs
+      while (spawnMs <= nowMs) {
+        spawnMs += cooldownMs;
+      }
+    }
+  }
+
+  if (isOverdue) {
+    displayName = `${boss.name}(過)`;
+  }
+
+  return {
+    displayName,
+    spawnMs,
+    isOverdue
+  };
+}
+
+/* ==========================================================================
    DYNAMIC INTERACTIVE TIMELINE SYSTEM (-30m ~ NOW ~ +3h)
    Completing ALL boss events in the 3.5-hour range (-30m ~ +3h) with 3-tier staggering!
    ========================================================================== */
@@ -258,27 +293,25 @@ function updateTimeline() {
       }
     }
 
-    // 2. Check next_spawn_time AND future recurring spawn cycles
-    if (boss.next_spawn_time) {
-      let spawnMs = new Date(boss.next_spawn_time).getTime();
-      if (!isNaN(spawnMs)) {
-        // Project all spawn cycles landing within +3 hours window
-        while (spawnMs <= windowEndMs) {
-          if (spawnMs >= windowStartMs) {
-            const pct = ((spawnMs - windowStartMs) / totalWindowMs) * 100;
-            const diffSec = Math.floor((spawnMs - nowMs) / 1000);
-            markerItems.push({
-              boss,
-              targetTimeMs: spawnMs,
-              pct,
-              diffSec,
-              eventType: 'spawn',
-              displayText: `${boss.name} ${formatLocalTime24(spawnMs)}`
-            });
-          }
-          if (cooldownMs <= 0) break;
-          spawnMs += cooldownMs;
+    // 2. Check effective next_spawn_time AND future recurring spawn cycles (with overdue auto-roll)
+    const eff = getEffectiveBossState(boss, nowMs);
+    if (eff.spawnMs) {
+      let spawnMs = eff.spawnMs;
+      while (spawnMs <= windowEndMs) {
+        if (spawnMs >= windowStartMs) {
+          const pct = ((spawnMs - windowStartMs) / totalWindowMs) * 100;
+          const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+          markerItems.push({
+            boss,
+            targetTimeMs: spawnMs,
+            pct,
+            diffSec,
+            eventType: 'spawn',
+            displayText: `${eff.displayName} ${formatLocalTime24(spawnMs)}`
+          });
         }
+        if (cooldownMs <= 0) break;
+        spawnMs += cooldownMs;
       }
     }
   });
@@ -354,14 +387,13 @@ function renderSequenceQueue() {
   const upcomingBosses = [];
 
   Object.values(bossStates).forEach(boss => {
-    if (!boss.next_spawn_time) return;
-    const spawnMs = new Date(boss.next_spawn_time).getTime();
-    if (isNaN(spawnMs)) return;
+    const eff = getEffectiveBossState(boss, nowMs);
+    if (!eff.spawnMs) return;
 
-    const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+    const diffSec = Math.floor((eff.spawnMs - nowMs) / 1000);
     // Include upcoming bosses in next 3 hours
     if (diffSec >= -300 && diffSec <= 3 * 3600) {
-      upcomingBosses.push({ boss, spawnMs, diffSec });
+      upcomingBosses.push({ boss, displayName: eff.displayName, spawnMs: eff.spawnMs, diffSec });
     }
   });
 
@@ -393,7 +425,7 @@ function renderSequenceQueue() {
 
     card.innerHTML = `
       <span class="seq-idx">#${index + 1}</span>
-      <span class="seq-name">👹 ${item.boss.name}</span>
+      <span class="seq-name">👹 ${item.displayName}</span>
       <span class="seq-time">${timeStr}</span>
       <span class="seq-diff">(${diffStr})</span>
       ${index < upcomingBosses.length - 1 ? '<span class="seq-arrow">➔</span>' : ''}
@@ -424,19 +456,17 @@ function highlightBossCard(bossName) {
 
 function checkAdvanceWarnings(nowMs) {
   Object.values(bossStates).forEach(boss => {
-    if (!boss.next_spawn_time) return;
+    const eff = getEffectiveBossState(boss, nowMs);
+    if (!eff.spawnMs) return;
 
-    const spawnMs = new Date(boss.next_spawn_time).getTime();
-    if (isNaN(spawnMs)) return;
-
-    const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+    const diffSec = Math.floor((eff.spawnMs - nowMs) / 1000);
 
     // Trigger warning when BOSS is between 1s and 300s (5 minutes) away
     if (diffSec > 0 && diffSec <= 300) {
-      const spawnKey = `${boss.name}_${boss.next_spawn_time}`;
+      const spawnKey = `${boss.name}_${eff.spawnMs}`;
       if (!notifiedSpawns.has(spawnKey)) {
         notifiedSpawns.add(spawnKey);
-        triggerBoss5MinWarning(boss, diffSec);
+        triggerBoss5MinWarning(boss, diffSec, eff.spawnMs, eff.displayName);
       }
     }
   });
@@ -499,10 +529,11 @@ function triggerTestNotification() {
   alert("🎉 已觸發測試推播！\n\n若 Windows 右下角仍未出現浮動橫幅，請確認：\n1. Windows 右下角【專注輔助 / 請勿打擾】是否已關閉。\n2. Windows 設定 ➔【系統】➔【通知與動作】中，【Google Chrome】是否有開啟！");
 }
 
-function triggerBoss5MinWarning(boss, secondsLeft) {
+function triggerBoss5MinWarning(boss, secondsLeft, spawnMs, displayName) {
   const minsLeft = Math.ceil(secondsLeft / 60);
-  const spawnTimeStr = formatLocalTime24(boss.next_spawn_time);
-  const title = `🔔 [BOSS 預警] ${boss.name}`;
+  const spawnTimeStr = formatLocalTime24(spawnMs);
+  const nameToUse = displayName || boss.name;
+  const title = `🔔 [BOSS 預警] ${nameToUse}`;
   const body = `即將在 ${minsLeft} 分鐘後 (${spawnTimeStr}) 出現！請血盟成員準備！`;
 
   if (notifyEnabled) {
@@ -531,12 +562,14 @@ function updateCardCountdowns(nowMs) {
     if (!boss) return;
 
     const timerEl = card.querySelector('.countdown-text');
-    const statusEl = card.querySelector('.boss-status-label');
+    const nameEl = card.querySelector('.boss-name');
     if (!timerEl) return;
 
-    if (boss.next_spawn_time) {
-      const spawnMs = new Date(boss.next_spawn_time).getTime();
-      const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+    const eff = getEffectiveBossState(boss, nowMs);
+    if (nameEl) nameEl.textContent = `👹 ${eff.displayName}`;
+
+    if (eff.spawnMs) {
+      const diffSec = Math.floor((eff.spawnMs - nowMs) / 1000);
 
       if (diffSec > 0) {
         const m = Math.floor(diffSec / 60);
@@ -550,7 +583,6 @@ function updateCardCountdowns(nowMs) {
         }
       } else {
         timerEl.textContent = '已重生';
-        if (statusEl) statusEl.textContent = '已重生';
         card.classList.remove('warning-card');
       }
     }
@@ -580,35 +612,37 @@ function renderBossGrid() {
 
   if (currentBossFilter === 'soon') {
     filtered = bosses.filter(b => {
-      if (!b.next_spawn_time) return false;
-      const diffMs = new Date(b.next_spawn_time).getTime() - nowMs;
+      const eff = getEffectiveBossState(b, nowMs);
+      if (!eff.spawnMs) return false;
+      const diffMs = eff.spawnMs - nowMs;
       return diffMs > 0 && diffMs <= 30 * 60 * 1000;
     });
   } else if (currentBossFilter === 'alive') {
-    filtered = bosses.filter(b => b.status === 'alive' || (b.next_spawn_time && new Date(b.next_spawn_time).getTime() <= nowMs));
+    filtered = bosses.filter(b => b.status === 'alive');
   }
 
   // Sort by next_spawn_time ascending
   filtered.sort((a, b) => {
-    const tA = a.next_spawn_time ? new Date(a.next_spawn_time).getTime() : Infinity;
-    const tB = b.next_spawn_time ? new Date(b.next_spawn_time).getTime() : Infinity;
+    const tA = getEffectiveBossState(a, nowMs).spawnMs || Infinity;
+    const tB = getEffectiveBossState(b, nowMs).spawnMs || Infinity;
     return tA - tB;
   });
 
   grid.innerHTML = '';
   filtered.forEach(boss => {
+    const eff = getEffectiveBossState(boss, nowMs);
     const card = document.createElement('div');
     const stateClass = `state-${boss.status || 'unknown'}`;
     card.className = `boss-card ${stateClass}`;
     card.dataset.bossName = boss.name;
 
     const lastDeathStr = formatLocalTime24(boss.last_death_time);
-    const nextSpawnStr = formatLocalTime24(boss.next_spawn_time);
-    const statusText = boss.status === 'alive' ? '已出現' : (boss.status === 'dead' ? '倒數中' : '未知');
+    const nextSpawnStr = eff.spawnMs ? formatLocalTime24(eff.spawnMs) : '--:--';
+    const statusText = boss.status === 'alive' ? '已出現' : (boss.status === 'dead' ? '倒數中' : (eff.isOverdue ? '倒數中(過)' : '未知'));
 
     card.innerHTML = `
       <div class="boss-info">
-        <span class="boss-name">👹 ${boss.name}</span>
+        <span class="boss-name">👹 ${eff.displayName}</span>
         <span class="boss-status-label">${statusText}</span>
       </div>
       <div class="boss-timer-container">
