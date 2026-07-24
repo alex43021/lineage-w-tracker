@@ -203,7 +203,7 @@ body {
 .timeline-wrapper {
   margin-top: 1rem;
   position: relative;
-  overflow-x: auto;
+  overflow: hidden;
   padding: 0.5rem 0;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
@@ -214,7 +214,8 @@ body {
 }
 
 .timeline-track-container {
-  min-width: 750px;
+  width: 100%;
+  min-width: 0;
   position: relative;
 }
 

@@ -373,6 +373,44 @@ function checkAdvanceWarnings(nowMs) {
   });
 }
 
+function requestAndTestNotification() {
+  if (!('Notification' in window)) {
+    alert("您的瀏覽器不支援 Notification 系統推播功能。");
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    triggerTestNotification();
+  } else if (Notification.permission === 'denied') {
+    alert("【Chrome 通知目前被封鎖】\n\n請在 Chrome 網址列左側點擊 🔒 鎖頭圖示 ➔ 找到【通知 (Notifications)】➔ 選擇【允許 (Allow)】後重新整理頁面！");
+  } else {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        triggerTestNotification();
+      } else {
+        alert("已拒絕通知權限。若想開啟，請點擊 Chrome 網址列左側 🔒 鎖頭圖示允許通知。");
+      }
+    });
+  }
+}
+
+function triggerTestNotification() {
+  const title = "🔔 [BOSS 預警] 通知功能已成功啟用！";
+  const body = "當 BOSS 重生倒數剩餘 5 分鐘時，將會自動跳出 Windows 右下角通知提醒。";
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      title: title,
+      body: body
+    });
+  } else {
+    new Notification(title, {
+      body: body,
+      icon: './icons/icon-192.png'
+    });
+  }
+}
+
 function triggerBoss5MinWarning(boss, secondsLeft) {
   const minsLeft = Math.ceil(secondsLeft / 60);
   const spawnTimeStr = new Date(boss.next_spawn_time).toTimeString().substring(0, 5);
@@ -398,12 +436,6 @@ function triggerBoss5MinWarning(boss, secondsLeft) {
           tag: boss.name
         });
       }
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          new Notification(title, { body: body });
-        }
-      });
     }
   }
 }
@@ -524,45 +556,6 @@ function renderBossGrid() {
 }
 
 /* ==========================================================================
-   CHAT LOG RENDERING
-   ========================================================================== */
-
-function renderChatLog() {
-  const box = document.getElementById('chatBox');
-  if (!box) return;
-
-  if (!chatHistory || chatHistory.length === 0) {
-    box.innerHTML = '<div class="loading-state">目前無系統對話紀錄</div>';
-    return;
-  }
-
-  const searchVal = (document.getElementById('chatSearchInput')?.value || '').toLowerCase();
-
-  box.innerHTML = '';
-  chatHistory.slice().reverse().forEach(line => {
-    if (searchVal && !line.toLowerCase().includes(searchVal)) return;
-
-    const isBoss = line.includes('BOSS') || line.includes('★');
-    if (currentChatFilter === 'boss' && !isBoss) return;
-
-    const item = document.createElement('div');
-    item.className = `chat-msg ${isBoss ? 'boss-msg' : ''}`;
-
-    const tsMatch = line.match(/^(\[\d{2}:\d{2}(:\d{2})?\])\s*(.*)$/);
-    if (tsMatch) {
-      item.innerHTML = `
-        <span class="msg-time">${tsMatch[1]}</span>
-        ${isBoss ? '<span class="msg-badge">★ BOSS</span>' : ''}
-        <span class="msg-text">${tsMatch[3]}</span>
-      `;
-    } else {
-      item.innerHTML = `<span class="msg-text">${line}</span>`;
-    }
-    box.appendChild(item);
-  });
-}
-
-/* ==========================================================================
    MANUAL REPORT MODAL & EVENT LISTENERS
    ========================================================================== */
 
@@ -593,8 +586,8 @@ function setupUIEventListeners() {
     btn.classList.toggle('active', notifyEnabled);
     btn.querySelector('.pill-text').textContent = notifyEnabled ? '5分鐘預警' : '預警關閉';
 
-    if (notifyEnabled && 'Notification' in window && Notification.permission !== 'granted') {
-      Notification.requestPermission();
+    if (notifyEnabled) {
+      requestAndTestNotification();
     }
   });
 
@@ -607,19 +600,6 @@ function setupUIEventListeners() {
       renderBossGrid();
     });
   });
-
-  // Chat Filter Buttons
-  document.querySelectorAll('[data-channel]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      document.querySelectorAll('[data-channel]').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      currentChatFilter = e.target.dataset.channel;
-      renderChatLog();
-    });
-  });
-
-  // Chat Search Input
-  document.getElementById('chatSearchInput')?.addEventListener('input', renderChatLog);
 
   // Manual Report Form Submission
   document.getElementById('closeReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
@@ -640,7 +620,7 @@ function setupUIEventListeners() {
   // Test Push Notification Button
   document.getElementById('testPushBtn')?.addEventListener('click', () => {
     playWarningChime();
-    triggerBoss5MinWarning({ name: "巴風特 (測試預警)", next_spawn_time: new Date(Date.now() + 295000).toISOString() }, 295);
+    requestAndTestNotification();
   });
 }
 
