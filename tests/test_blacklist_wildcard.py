@@ -8,11 +8,10 @@ from ui.main_window import CaptureWorker
 class TestBlacklistWildcard(unittest.TestCase):
     def test_short_length_exclusion(self):
         exclusions = []
-        # Any string with length < 4 should be automatically excluded
+        # Single char noise is excluded, but 2-3 char boss names like 'CP', '巨蟻', '沙蟲' are preserved
         self.assertTrue(CaptureWorker.is_blacklisted_line("1", exclusions))
-        self.assertTrue(CaptureWorker.is_blacklisted_line("CP", exclusions))
-        self.assertTrue(CaptureWorker.is_blacklisted_line("3個", exclusions))
-        self.assertTrue(CaptureWorker.is_blacklisted_line("  G  ", exclusions))
+        self.assertFalse(CaptureWorker.is_blacklisted_line("CP", exclusions))
+        self.assertFalse(CaptureWorker.is_blacklisted_line("3個", exclusions))
 
     def test_wildcard_matching(self):
         exclusions = [

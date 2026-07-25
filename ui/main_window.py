@@ -757,6 +757,8 @@ class CaptureWorker(QThread):
         if not line:
             return False
         clean_strip = str(line).strip()
+        if len(clean_strip) < 2:
+            return True
             
         if not exclusions:
             return False
