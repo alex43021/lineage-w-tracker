@@ -151,6 +151,23 @@ async function recoverBossStatesFromReportHistory() {
 async function fetchDirectRestData(url, passcode) {
   try {
     const cleanUrl = url.replace(/\/$/, "");
+
+    // 1. Fetch remote boss rules first to ensure correct CD times (e.g. 240m instead of default 480m)
+    const rulesUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_rules.json`;
+    try {
+      const rulesRes = await fetch(rulesUrl);
+      if (rulesRes.ok) {
+        const rulesData = await rulesRes.json();
+        if (Array.isArray(rulesData) && rulesData.length > 0) {
+          bossRules = rulesData;
+          console.log("Successfully fetched remote boss_rules via REST:", bossRules);
+        }
+      }
+    } catch(e) {
+      console.log("REST boss_rules fetch failed:", e);
+    }
+
+    // 2. Fetch remote boss states
     const restUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_states.json`;
     const res = await fetch(restUrl);
     if (res.ok) {
@@ -303,14 +320,23 @@ function formatLocalTime24(dateObjOrIsoStr) {
 }
 
 function getBossCooldownMins(bossName) {
+  // 1. Priority 1: Active synced bossRules array
   if (Array.isArray(bossRules) && bossRules.length > 0) {
     const rule = bossRules.find(r => r.name === bossName);
     if (rule && rule.cooldown_mins) {
-      return rule.cooldown_mins;
+      return parseInt(rule.cooldown_mins, 10);
     }
   }
+  // 2. Priority 2: State-level cooldown_mins
   if (bossStates[bossName] && bossStates[bossName].cooldown_mins) {
-    return bossStates[bossName].cooldown_mins;
+    return parseInt(bossStates[bossName].cooldown_mins, 10);
+  }
+  // 3. Priority 3: Fallback lookup in default rules array
+  if (Array.isArray(DEFAULT_BOSS_RULES)) {
+    const defRule = DEFAULT_BOSS_RULES.find(r => r.name === bossName);
+    if (defRule && defRule.cooldown_mins) {
+      return parseInt(defRule.cooldown_mins, 10);
+    }
   }
   return 60;
 }
