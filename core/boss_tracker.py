@@ -39,13 +39,22 @@ class BossTracker:
 
     def set_rules(self, rules):
         self.rules = rules
-        # Merge existing states if rule still exists, otherwise re-initialize
         new_states = {}
+        from datetime import datetime, timedelta
         for rule in self.rules:
             name = rule["name"]
+            cooldown_mins = rule.get("cooldown_mins", 60)
             if name in self.states:
-                new_states[name] = self.states[name]
-                new_states[name]["cooldown_mins"] = rule.get("cooldown_mins", 60)
+                st = self.states[name]
+                st["cooldown_mins"] = cooldown_mins
+                if st.get("last_death_time"):
+                    try:
+                        death_dt = datetime.fromisoformat(st["last_death_time"])
+                        next_dt = death_dt + timedelta(minutes=cooldown_mins)
+                        st["next_spawn_time"] = next_dt.isoformat()
+                    except Exception as e:
+                        logger.error(f"Failed to recalculate next_spawn_time for {name}: {e}")
+                new_states[name] = st
             else:
                 new_states[name] = {
                     "name": name,
@@ -55,7 +64,7 @@ class BossTracker:
                     "next_spawn_time": None,
                     "source": "none",
                     "reported_by": "system",
-                    "cooldown_mins": rule.get("cooldown_mins", 60)
+                    "cooldown_mins": cooldown_mins
                 }
         self.states = new_states
 

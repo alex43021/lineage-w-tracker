@@ -345,9 +345,18 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
   let isOverdue = false;
   let displayName = boss.name;
 
-  let spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
   const cooldownMins = getBossCooldownMins(boss.name);
   const cooldownMs = cooldownMins * 60 * 1000;
+
+  let spawnMs = null;
+  const deathMs = parseIsoToEpochMs(boss.last_death_time);
+
+  if (deathMs && !isNaN(deathMs)) {
+    // Dynamically recalculate next spawn time using active CD rule
+    spawnMs = deathMs + cooldownMs;
+  } else {
+    spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
+  }
 
   if (spawnMs && !isNaN(spawnMs)) {
     if (spawnMs <= nowMs && boss.status !== 'alive') {
