@@ -60,6 +60,22 @@ async function loadConfigAndConnect() {
   initFirebase(currentDbUrl, currentPasscode);
 }
 
+function normalizeBossStates(data) {
+  if (!data || typeof data !== 'object') return {};
+  const clean = {};
+  Object.keys(data).forEach(k => {
+    let key = k;
+    try {
+      if (k.includes('%')) {
+        key = decodeURIComponent(k);
+      }
+    } catch(e) {}
+    clean[key] = data[k];
+    clean[key].name = key;
+  });
+  return clean;
+}
+
 // Direct REST API Fallback Fetch for Instant Rendering
 async function fetchDirectRestData(url, passcode) {
   try {
@@ -69,7 +85,7 @@ async function fetchDirectRestData(url, passcode) {
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object') {
-        bossStates = data;
+        bossStates = normalizeBossStates(data);
         updateConnectionStatus('online');
         renderBossGrid();
         updateTimeline();
@@ -130,7 +146,7 @@ function startSyncListeners() {
   db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).on('value', (snapshot) => {
     const data = snapshot.val();
     if (data && typeof data === 'object') {
-      bossStates = data;
+      bossStates = normalizeBossStates(data);
       updateConnectionStatus('online');
       renderBossGrid();
       updateTimeline();
@@ -782,18 +798,21 @@ function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = 'ÊàêÂ
   updateTimeline();
   renderSequenceQueue();
 
-  // 1. Direct REST PUT to /boss_states/<bossName>.json for instant cloud sync to all members
+  // 1. Direct REST PATCH to /boss_states.json for instant cloud sync with exact raw Chinese boss name key
   const cleanUrl = currentDbUrl.replace(/\/$/, "");
-  const stateUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/boss_states/${encodeURIComponent(bossName)}.json`;
+  const stateUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/boss_states.json`;
   
+  const updatePayload = {};
+  updatePayload[bossName] = bossStates[bossName];
+
   fetch(stateUrl, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(bossStates[bossName])
+    body: JSON.stringify(updatePayload)
   })
   .then(res => {
     if (res.ok) {
-      console.log(`Successfully updated boss_states for ${bossName} directly in Firebase.`);
+      console.log(`Successfully patched boss_states for ${bossName} directly in Firebase.`);
     }
   })
   .catch(err => console.error("Error updating boss_states:", err));
