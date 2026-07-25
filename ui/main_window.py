@@ -717,7 +717,8 @@ class CaptureWorker(QThread):
             tracker = self.boss_tracker if hasattr(self, "boss_tracker") else BossTracker(self.settings.get("boss_rules", []))
             
             matched_boss_name = tracker.get_matched_boss_name(cleaned_line)
-            is_whitelisted = (cleaned_line in whitelisted_list) or (matched_boss_name is not None)
+            contains_boss_name = tracker.contains_any_boss_name(cleaned_line) if hasattr(tracker, "contains_any_boss_name") else False
+            is_whitelisted = (cleaned_line in whitelisted_list) or (matched_boss_name is not None) or contains_boss_name
 
             # 2. BLACKLIST CHECK: If line is NOT whitelisted/boss, check wildcard/pattern exclusions
             if not is_whitelisted:
@@ -752,13 +753,10 @@ class CaptureWorker(QThread):
 
     @staticmethod
     def is_blacklisted_line(line, exclusions):
-        """Check if line matches length < 4, exact string, substring, or wildcard pattern (*, ?) in exclusions."""
+        """Check if line matches exact string, substring, or wildcard pattern (*, ?) in exclusions."""
         if not line:
             return False
         clean_strip = str(line).strip()
-        # 1. Exclude any message with length less than 4
-        if len(clean_strip) < 4:
-            return True
             
         if not exclusions:
             return False

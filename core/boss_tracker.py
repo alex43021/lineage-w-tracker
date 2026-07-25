@@ -119,37 +119,70 @@ class BossTracker:
 
     def _check_keywords(self, line, keywords):
         """
-        Check if all keywords in the list are present in the line (logical AND).
-        Supports simple fuzzy character matching for typos.
+        Check if keywords match the line.
+        Supports fuzzy matching and common synonym variations for robust OCR.
         """
         if not keywords:
             return False
             
         line_lower = line.lower()
+        
+        # 1. Exact or fuzzy match for all keywords
+        all_matched = True
         for kw in keywords:
             kw_lower = kw.lower()
             if kw_lower in line_lower:
                 continue
             # Try fuzzy check if length of keyword is at least 3 characters
+            found_fuzzy = False
             if len(kw_lower) >= 3:
-                # Find best substring match
-                found_fuzzy = False
                 for i in range(len(line_lower) - len(kw_lower) + 1):
                     sub = line_lower[i:i+len(kw_lower)]
                     sim = difflib.SequenceMatcher(None, sub, kw_lower).ratio()
-                    if sim >= 0.8: # 80% character similarity
+                    if sim >= 0.75: # 75% character similarity
                         found_fuzzy = True
                         break
-                if found_fuzzy:
-                    continue
+            if not found_fuzzy:
+                all_matched = False
+                break
+                
+        if all_matched:
+            return True
+
+        # 2. Resilient Fallback: If the primary Boss Name keyword is in line, check for generic action indicators
+        if len(keywords) >= 2:
+            boss_name_kw = keywords[0].lower()
+            if boss_name_kw in line_lower:
+                action_kw = keywords[1].lower()
+                # If secondary keyword is a death term ("擊敗", "死亡", etc.)
+                if any(term in action_kw for term in ["擊", "敗", "死", "消"]):
+                    if any(term in line_lower for term in ["擊", "敗", "死", "消", "倒", "陣"]):
+                        return True
+                # If secondary keyword is a spawn term ("出現", "重生", etc.)
+                if any(term in action_kw for term in ["現", "生", "臨", "出"]):
+                    if any(term in line_lower for term in ["現", "生", "臨", "出", "降", "到"]):
+                        return True
+                        
+        return False
+
+    def contains_any_boss_name(self, line):
+        """
+        Check if line contains any configured boss name (protects boss lines from blacklists).
+        """
+        if not line:
             return False
-        return True
+        line_lower = line.lower()
+        for rule in self.rules:
+            boss_name = rule.get("name", "")
+            if boss_name and boss_name.lower() in line_lower:
+                return True
+        return False
 
     def is_boss_related_line(self, line):
         """
         Check if a given line matches spawn or death keywords of ANY configured BOSS rule (Whitelist check).
         """
-        return self.get_matched_boss_name(line) is not None
+        return self.get_matched_boss_name(line) is not None or self.contains_any_boss_name(line)
 
     def get_matched_boss_name(self, line):
         """
