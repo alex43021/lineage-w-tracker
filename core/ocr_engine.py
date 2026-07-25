@@ -2,6 +2,11 @@ import logging
 import cv2
 import numpy as np
 
+try:
+    import zhconv
+except ImportError:
+    zhconv = None
+
 logger = logging.getLogger(__name__)
 
 class OCREngine:
@@ -114,25 +119,27 @@ class OCREngine:
             
             text_lines = []
             if result and result[0]:
-                hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-                lower_yellow = np.array([5, 20, 50])
-                upper_yellow = np.array([45, 255, 255])
-                yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
-                del hsv
+                yellow_mask = None
+                if use_yellow_filter:
+                    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                    lower_yellow = np.array([5, 20, 50])
+                    upper_yellow = np.array([45, 255, 255])
+                    yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+                    del hsv
 
                 for line_data in result[0]:
                     line_text = line_data[1][0].strip()
                     if not line_text:
                         continue
                     
-                    # Convert to Traditional Chinese using zhconv
-                    try:
-                        import zhconv
-                        line_text = zhconv.convert(line_text, 'zh-hant')
-                    except Exception as e:
-                        logger.error(f"zhconv convert failed: {e}")
+                    # Convert to Traditional Chinese using zhconv if available
+                    if zhconv:
+                        try:
+                            line_text = zhconv.convert(line_text, 'zh-hant')
+                        except Exception as e:
+                            logger.error(f"zhconv convert failed: {e}")
                     
-                    if use_yellow_filter:
+                    if use_yellow_filter and yellow_mask is not None:
                         try:
                             # Bounding box coords format in PaddleOCR: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
                             box = line_data[0]
@@ -153,7 +160,8 @@ class OCREngine:
                             
                     text_lines.append(line_text)
                 
-                del yellow_mask
+                if yellow_mask is not None:
+                    del yellow_mask
             
             full_text = " ".join(text_lines)
             return {
