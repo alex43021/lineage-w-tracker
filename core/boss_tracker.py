@@ -65,12 +65,14 @@ class BossTracker:
         """
         if not db_states or not isinstance(db_states, dict):
             return False
+        import urllib.parse
         updated = False
-        for name, db_st in db_states.items():
+        for raw_name, db_st in db_states.items():
+            name = urllib.parse.unquote(raw_name)
             if name in self.states and isinstance(db_st, dict):
-                # Update status and timestamps if available
                 if db_st.get("last_spawn_time") or db_st.get("last_death_time") or db_st.get("next_spawn_time"):
                     self.states[name].update(db_st)
+                    self.states[name]["name"] = name
                     updated = True
         return updated
 

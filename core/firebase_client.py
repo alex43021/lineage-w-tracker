@@ -72,12 +72,36 @@ class FirebaseClient:
             return {}
 
     def update_boss_states(self, states):
-        """Upload current boss states."""
+        """Upload current boss states using non-destructive safe merge."""
         url = self._get_url("boss_states")
-        if not url:
+        if not url or not isinstance(states, dict):
             return False
         try:
-            response = self.session.put(url, json=states, timeout=5)
+            # First fetch current remote states to preserve existing active timestamps
+            existing = self.get_boss_states()
+            merged = {}
+            if existing and isinstance(existing, dict):
+                import urllib.parse
+                for k, v in existing.items():
+                    raw_k = urllib.parse.unquote(k)
+                    if isinstance(v, dict):
+                        merged[raw_k] = v
+
+            for k, v in states.items():
+                if isinstance(v, dict):
+                    if k not in merged:
+                        merged[k] = v
+                    else:
+                        # Only overwrite timestamps if new state actually has a timestamp
+                        if v.get("next_spawn_time") or v.get("last_death_time") or v.get("last_spawn_time"):
+                            merged[k].update(v)
+                        else:
+                            # Preserve existing non-empty fields
+                            for field_k, field_v in v.items():
+                                if field_v is not None or field_k not in merged[k]:
+                                    merged[k][field_k] = field_v
+
+            response = self.session.put(url, json=merged, timeout=5)
             return response.status_code == 200
         except Exception as e:
             logger.error(f"Firebase update_boss_states failed: {e}")

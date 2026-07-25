@@ -2,7 +2,7 @@
   "hwnd": 67046,
   "crop_x": 470,
   "crop_y": 550,
-  "crop_w": 200,
+  "crop_w": 177,
   "crop_h": 30,
   "ocr_threshold": 150,
   "ocr_interval_s": 2.0,
@@ -229,7 +229,7 @@
       "name": "飛龍3",
       "spawn_keywords": [],
       "death_keywords": [],
-      "cooldown_mins": 480
+      "cooldown_mins": 240
     },
     {
       "name": "飛龍4",

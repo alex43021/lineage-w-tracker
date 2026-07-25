@@ -76,6 +76,77 @@ function normalizeBossStates(data) {
   return clean;
 }
 
+// Automatically recover missing boss spawn times from historical /reports if DB was ever wiped
+async function recoverBossStatesFromReportHistory() {
+  try {
+    const cleanUrl = currentDbUrl.replace(/\/$/, "");
+    const reportsUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports.json`;
+    const res = await fetch(reportsUrl);
+    if (!res.ok) return;
+
+    const reports = await res.json();
+    if (!reports || typeof reports !== 'object') return;
+
+    const latestReports = {};
+    Object.values(reports).forEach(rep => {
+      if (!rep || !rep.boss_name || !rep.timestamp) return;
+      const bName = rep.boss_name;
+      const repMs = parseIsoToEpochMs(rep.timestamp);
+      if (!repMs) return;
+
+      if (!latestReports[bName] || repMs > latestReports[bName].ms) {
+        latestReports[bName] = { rep, ms: repMs };
+      }
+    });
+
+    let recoveredAny = false;
+    const patchPayload = {};
+
+    Object.keys(latestReports).forEach(bName => {
+      const { rep, ms } = latestReports[bName];
+      const deathDate = new Date(ms);
+      
+      const currentSt = bossStates[bName];
+      // If boss has no valid next_spawn_time or if timestamps are missing
+      if (!currentSt || !currentSt.next_spawn_time) {
+        const cooldownMins = getBossCooldownMins(bName);
+        const nextSpawnDate = new Date(ms + cooldownMins * 60 * 1000);
+        
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+        if (!bossStates[bName]) bossStates[bName] = { name: bName };
+        bossStates[bName].status = 'dead';
+        bossStates[bName].last_death_time = formatIso(deathDate);
+        bossStates[bName].next_spawn_time = formatIso(nextSpawnDate);
+        bossStates[bName].reported_by = rep.reported_by || '歷史紀錄';
+        bossStates[bName].is_overdue = false;
+        bossStates[bName].source = 'report_recovery';
+
+        patchPayload[bName] = bossStates[bName];
+        recoveredAny = true;
+      }
+    });
+
+    if (recoveredAny) {
+      console.log("Successfully recovered missing boss states from report history!");
+      renderBossGrid();
+      updateTimeline();
+      renderSequenceQueue();
+
+      // Persist recovered states back to Firebase DB so all devices get them
+      const stateUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/boss_states.json`;
+      fetch(stateUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchPayload)
+      }).catch(e => {});
+    }
+  } catch (e) {
+    console.error("Report history recovery failed:", e);
+  }
+}
+
 // Direct REST API Fallback Fetch for Instant Rendering
 async function fetchDirectRestData(url, passcode) {
   try {
@@ -90,6 +161,9 @@ async function fetchDirectRestData(url, passcode) {
         renderBossGrid();
         updateTimeline();
         renderSequenceQueue();
+        recoverBossStatesFromReportHistory();
+      } else {
+        recoverBossStatesFromReportHistory();
       }
     }
   } catch (e) {
@@ -151,6 +225,9 @@ function startSyncListeners() {
       renderBossGrid();
       updateTimeline();
       renderSequenceQueue();
+      recoverBossStatesFromReportHistory();
+    } else {
+      recoverBossStatesFromReportHistory();
     }
   });
 
