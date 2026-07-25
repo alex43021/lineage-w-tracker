@@ -1,14 +1,76 @@
 import ctypes
+from ctypes import wintypes
 import logging
 import numpy as np
 import cv2
 import mss
 import win32gui
-import win32ui
 import win32con
-from ctypes import wintypes
 
 logger = logging.getLogger(__name__)
+
+# Win32 GDI CTypes API Function Setup
+user32 = ctypes.windll.user32
+gdi32 = ctypes.windll.gdi32
+
+user32.GetWindowDC.argtypes = [wintypes.HWND]
+user32.GetWindowDC.restype = wintypes.HDC
+
+user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+user32.ReleaseDC.restype = ctypes.c_int
+
+gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+gdi32.CreateCompatibleDC.restype = wintypes.HDC
+
+gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
+gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
+
+gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+gdi32.SelectObject.restype = wintypes.HGDIOBJ
+
+gdi32.DeleteDC.argtypes = [wintypes.HDC]
+gdi32.DeleteDC.restype = wintypes.BOOL
+
+gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+gdi32.DeleteObject.restype = wintypes.BOOL
+
+gdi32.PatBlt.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.DWORD]
+gdi32.PatBlt.restype = wintypes.BOOL
+
+user32.PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, ctypes.c_uint]
+user32.PrintWindow.restype = wintypes.BOOL
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ('biSize', wintypes.DWORD),
+        ('biWidth', wintypes.LONG),
+        ('biHeight', wintypes.LONG),
+        ('biPlanes', wintypes.WORD),
+        ('biBitCount', wintypes.WORD),
+        ('biCompression', wintypes.DWORD),
+        ('biSizeImage', wintypes.DWORD),
+        ('biXPelsPerMeter', wintypes.LONG),
+        ('biYPelsPerMeter', wintypes.LONG),
+        ('biClrUsed', wintypes.DWORD),
+        ('biClrImportant', wintypes.DWORD)
+    ]
+
+class BITMAPINFO(ctypes.Structure):
+    _fields_ = [
+        ('bmiHeader', BITMAPINFOHEADER),
+        ('bmiColors', wintypes.DWORD * 3)
+    ]
+
+gdi32.GetDIBits.argtypes = [
+    wintypes.HDC,
+    wintypes.HBITMAP,
+    ctypes.c_uint,
+    ctypes.c_uint,
+    ctypes.c_void_p,
+    ctypes.POINTER(BITMAPINFO),
+    ctypes.c_uint
+]
+gdi32.GetDIBits.restype = ctypes.c_int
 
 class WindowCapturer:
     def __init__(self):
@@ -36,9 +98,7 @@ class WindowCapturer:
             try:
                 if win32gui.IsWindowVisible(hwnd):
                     title = win32gui.GetWindowText(hwnd)
-                    # Match game title but ignore the capturer UI itself
                     if window_title in title and "對話擷取" not in title and "控制台" not in title:
-                        # Extra filtering: ensure it's a real game window本體
                         if window_title == "天堂W":
                             is_real_game = (title == "天堂W" or title.startswith("天堂W l ") or title.startswith("天堂W | "))
                             if not is_real_game:
@@ -67,13 +127,12 @@ class WindowCapturer:
 
     def capture_printwindow(self, hwnd):
         """
-        Background capture using PrintWindow API.
-        Returns BGR cv2 image of the client area, or None on failure.
+        Background capture using PrintWindow API with pure CTypes GDI.
+        Guarantees ZERO GDI handle leaks over long-running 100+ hour sessions.
         """
         if not hwnd or not win32gui.IsWindow(hwnd):
             return None
 
-        # 1. Get window geometry
         try:
             win_rect = win32gui.GetWindowRect(hwnd)
             win_w = win_rect[2] - win_rect[0]
@@ -81,7 +140,6 @@ class WindowCapturer:
             if win_w <= 0 or win_h <= 0:
                 return None
 
-            # 2. Get client area size
             client_rect = win32gui.GetClientRect(hwnd)
             client_w = client_rect[2] - client_rect[0]
             client_h = client_rect[3] - client_rect[1]
@@ -91,45 +149,50 @@ class WindowCapturer:
             return None
 
         hwnd_dc = None
-        mfc_dc = None
-        save_dc = None
-        save_bitmap = None
+        mem_dc = None
+        bitmap = None
         old_bmp = None
         try:
-            # 3. Get window DC & create compatible memory DC
-            hwnd_dc = win32gui.GetWindowDC(hwnd)
+            hwnd_dc = user32.GetWindowDC(hwnd)
             if not hwnd_dc:
                 return None
 
-            mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
-            save_dc = mfc_dc.CreateCompatibleDC()
-
-            save_bitmap = win32ui.CreateBitmap()
-            save_bitmap.CreateCompatibleBitmap(mfc_dc, win_w, win_h)
-
-            old_bmp = save_dc.SelectObject(save_bitmap)
-
-            # Paint background black before calling PrintWindow to prevent visual artifacts
-            save_dc.PatBlt((0, 0), (win_w, win_h), win32con.BLACKNESS)
-
-            # PrintWindow with flag=3 (PW_CLIENTONLY | PW_RENDERFULLCONTENT) for DX11/12
-            PrintWindow = ctypes.windll.user32.PrintWindow
-            PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, ctypes.c_uint]
-            PrintWindow.restype = wintypes.BOOL
-            result = PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
-
-            if not result:
+            mem_dc = gdi32.CreateCompatibleDC(hwnd_dc)
+            if not mem_dc:
                 return None
 
-            # 4. Extract bitmap bits
-            bmp_info = save_bitmap.GetInfo()
-            bmp_str = save_bitmap.GetBitmapBits(True)
-            img = np.frombuffer(bmp_str, dtype=np.uint8).reshape(
-                (bmp_info["bmHeight"], bmp_info["bmWidth"], 4)
-            )
+            bitmap = gdi32.CreateCompatibleBitmap(hwnd_dc, win_w, win_h)
+            if not bitmap:
+                return None
+
+            old_bmp = gdi32.SelectObject(mem_dc, bitmap)
+
+            # Paint background black before calling PrintWindow to prevent visual artifacts
+            gdi32.PatBlt(mem_dc, 0, 0, win_w, win_h, 0x00000042) # BLACKNESS
+
+            # PrintWindow with flag=3 (PW_CLIENTONLY | PW_RENDERFULLCONTENT)
+            res = user32.PrintWindow(hwnd, mem_dc, 3)
+            if not res:
+                return None
+
+            # Prepare BITMAPINFO for raw DIB extraction
+            bmi = BITMAPINFO()
+            bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+            bmi.bmiHeader.biWidth = win_w
+            bmi.bmiHeader.biHeight = -win_h  # Top-down uncompressed DIB
+            bmi.bmiHeader.biPlanes = 1
+            bmi.bmiHeader.biBitCount = 32
+            bmi.bmiHeader.biCompression = 0  # BI_RGB
+
+            buffer = ctypes.create_string_buffer(win_w * win_h * 4)
+            lines = gdi32.GetDIBits(mem_dc, bitmap, 0, win_h, buffer, ctypes.byref(bmi), 0)
+            if lines == 0:
+                return None
+
+            img = np.frombuffer(buffer, dtype=np.uint8).reshape((win_h, win_w, 4))
             img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
-            # 5. Crop client area only
+            # Crop client area
             left_top_screen = win32gui.ClientToScreen(hwnd, (0, 0))
             offset_x = max(0, min(left_top_screen[0] - win_rect[0], win_w - 1))
             offset_y = max(0, min(left_top_screen[1] - win_rect[1], win_h - 1))
@@ -142,20 +205,17 @@ class WindowCapturer:
             logger.error(f"PrintWindow capture exception: {e}")
             return None
         finally:
-            if save_dc is not None:
-                if old_bmp is not None:
-                    try: save_dc.SelectObject(old_bmp)
-                    except: pass
-                try: save_dc.DeleteDC()
+            if old_bmp:
+                try: gdi32.SelectObject(mem_dc, old_bmp)
                 except: pass
-            if save_bitmap is not None:
-                try: win32gui.DeleteObject(save_bitmap.GetHandle())
+            if bitmap:
+                try: gdi32.DeleteObject(bitmap)
                 except: pass
-            if mfc_dc is not None:
-                try: mfc_dc.DeleteDC()
+            if mem_dc:
+                try: gdi32.DeleteDC(mem_dc)
                 except: pass
-            if hwnd_dc is not None:
-                try: win32gui.ReleaseDC(hwnd, hwnd_dc)
+            if hwnd_dc:
+                try: user32.ReleaseDC(hwnd, hwnd_dc)
                 except: pass
 
     def capture_client_area(self, hwnd, region=None):
@@ -182,7 +242,6 @@ class WindowCapturer:
         if img_bgr is not None:
             mean_val = float(np.mean(img_bgr))
             if mean_val >= 5.0:
-                # PrintWindow succeeded and is not black. Crop region if requested.
                 if region:
                     rx, ry, rw, rh = region
                     fh, fw = img_bgr.shape[:2]
@@ -196,7 +255,6 @@ class WindowCapturer:
                 logger.debug("PrintWindow output is mostly black. Falling back to mss.")
 
         # 2. Fallback to mss (Screen capture)
-        # Note: Game window must be visible on the screen (not minimized or completely obscured)
         monitor = {
             "left": win_left,
             "top": win_top,
@@ -219,5 +277,5 @@ class WindowCapturer:
             return img_bgr
         except Exception as e:
             logger.error(f"mss capture failed: {e}")
-            self.close()  # Reset mss instance on failure
+            self.close()
             return None

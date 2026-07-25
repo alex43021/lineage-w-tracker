@@ -467,6 +467,7 @@ class CaptureWorker(QThread):
         
         last_ocr_time = 0
         last_report_check_time = 0
+        last_ping_time = 0
         cycle_count = 0
         reported_window_count = -1
         self._last_fail_log_time = {} # Throttle capture failure logs per HWND
@@ -515,20 +516,24 @@ class CaptureWorker(QThread):
                         except Exception as e:
                             logger.error(f"Working set trim error: {e}")
 
-                # 2. Sync / Firebase Checks (Every 2 seconds)
+                # 2. Check for Manual Reports (Every 2 seconds)
                 if now - last_report_check_time >= 2.0:
                     last_report_check_time = now
                     if self.firebase.is_configured():
                         try:
-                            # Check connection status
+                            self.process_incoming_firebase_events()
+                        except Exception as e:
+                            logger.error(f"Error during Firebase report processing: {e}")
+
+                # 3. Connection Ping & Status Update (Every 30 seconds to avoid blocking OCR loop)
+                if now - last_ping_time >= 30.0:
+                    last_ping_time = now
+                    if self.firebase.is_configured():
+                        try:
                             success, msg = self.firebase.test_connection()
                             self.connection_status_signal.emit(success, msg)
-                            
-                            # Handle any user-submitted manual reports or test notifications
-                            if success:
-                                self.process_incoming_firebase_events()
                         except Exception as e:
-                            logger.error(f"Error during Firebase check: {e}")
+                            logger.error(f"Error during Firebase status ping: {e}")
                     else:
                         self.connection_status_signal.emit(False, "未設定 Firebase 連線")
             except Exception as outer_e:
@@ -547,8 +552,7 @@ class CaptureWorker(QThread):
         # Upload public key
         url = self.firebase._get_url("vapid_public_key")
         try:
-            import requests
-            requests.put(url, json=self.web_push.public_key_b64, timeout=5)
+            self.firebase.session.put(url, json=self.web_push.public_key_b64, timeout=5)
             logger.info("Uploaded VAPID Public Key to Firebase successfully.")
         except Exception as e:
             logger.error(f"Failed to upload public key to Firebase: {e}")
@@ -873,9 +877,13 @@ class CaptureWorker(QThread):
 
         def on_expired(sub_id):
             # Delete expired tokens from database to keep subscriptions clean
-            self.firebase._get_url(f"subscriptions/{sub_id}")
-            requests.delete(self.firebase._get_url(f"subscriptions/{sub_id}"))
-            self.log_signal.emit(f"清理已失效的手機訂閱憑證: {sub_id}")
+            url = self.firebase._get_url(f"subscriptions/{sub_id}")
+            if url:
+                try:
+                    self.firebase.session.delete(url, timeout=3)
+                    self.log_signal.emit(f"清理已失效的手機訂閱憑證: {sub_id}")
+                except Exception:
+                    pass
 
         self.log_signal.emit(f"正在廣播推播至 {len(subs)} 個手機用戶...")
         success_c, fail_c = self.web_push.send_to_all(subs, title, body, expired_callback=on_expired)
