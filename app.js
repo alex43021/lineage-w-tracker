@@ -11,6 +11,7 @@ let notifyEnabled = false;
 let currentBossFilter = "all";
 let selectedBossForReport = null;
 let deferredPrompt = null;
+let timelineSpanHours = parseInt(localStorage.getItem('lw_timeline_span') || "3", 10);
 
 // Intercept browser PWA install prompt
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -30,7 +31,7 @@ if ('serviceWorker' in navigator) {
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
-  updateTimelineScale();
+  setTimelineSpanHours(timelineSpanHours);
   
   // Start 1-second interval timer for live countdowns & timeline indicator
   setInterval(tickRealtimeLoop, 1000);
@@ -386,23 +387,54 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
    Completing ALL boss events in the 3.5-hour range (-30m ~ +3h) with 3-tier staggering!
    ========================================================================== */
 
+function setTimelineSpanHours(spanVal) {
+  timelineSpanHours = (spanVal === 1) ? 1 : 3;
+  localStorage.setItem('lw_timeline_span', timelineSpanHours);
+
+  document.querySelectorAll('[data-span]').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.span, 10) === timelineSpanHours);
+  });
+
+  const subtitle = document.getElementById('timelineSubtitle');
+  if (subtitle) {
+    subtitle.textContent = (timelineSpanHours === 1) ? '(-30m ~ 目前 ~ +1h)' : '(-30m ~ 目前 ~ +3h)';
+  }
+
+  updateTimeline();
+  setTimeout(centerTimelineNow, 50);
+}
+
 function updateTimelineScale(nowMs = Date.now()) {
   const scaleEl = document.getElementById('timelineScale');
   if (!scaleEl) return;
 
-  // Scale ticks displaying absolute 24-Hour clock times: -30m, -15m, NOW, +15m, +30m, +1h, +1.5h, +2h, +2.5h, +3h
-  const ticks = [
-    { offsetMins: -30, pct: 0 },
-    { offsetMins: -15, pct: 7.14 },
-    { offsetMins: 0, pct: 14.28, isNow: true },
-    { offsetMins: 15, pct: 21.42 },
-    { offsetMins: 30, pct: 28.57 },
-    { offsetMins: 60, pct: 42.85 },
-    { offsetMins: 90, pct: 57.14 },
-    { offsetMins: 120, pct: 71.42 },
-    { offsetMins: 150, pct: 85.71 },
-    { offsetMins: 180, pct: 100 }
-  ];
+  let ticks = [];
+  if (timelineSpanHours === 1) {
+    // 1-Hour View: Total 90 mins (-30m to +60m). NOW at 33.333%
+    ticks = [
+      { offsetMins: -30, pct: 0 },
+      { offsetMins: -15, pct: 16.666 },
+      { offsetMins: 0, pct: 33.333, isNow: true },
+      { offsetMins: 15, pct: 50.0 },
+      { offsetMins: 30, pct: 66.666 },
+      { offsetMins: 45, pct: 83.333 },
+      { offsetMins: 60, pct: 100 }
+    ];
+  } else {
+    // 3-Hour View: Total 210 mins (-30m to +180m). NOW at 14.2857%
+    ticks = [
+      { offsetMins: -30, pct: 0 },
+      { offsetMins: -15, pct: 7.14 },
+      { offsetMins: 0, pct: 14.28, isNow: true },
+      { offsetMins: 15, pct: 21.42 },
+      { offsetMins: 30, pct: 28.57 },
+      { offsetMins: 60, pct: 42.85 },
+      { offsetMins: 90, pct: 57.14 },
+      { offsetMins: 120, pct: 71.42 },
+      { offsetMins: 150, pct: 85.71 },
+      { offsetMins: 180, pct: 100 }
+    ];
+  }
 
   scaleEl.innerHTML = '';
   ticks.forEach(t => {
@@ -433,15 +465,18 @@ function updateTimeline() {
     nowText.textContent = now.toTimeString().split(' ')[0];
   }
 
-  // Fixed NOW position at 14.28% (30 mins into 210 min scale)
-  const nowPct = 14.28;
+  const rightSpanMins = (timelineSpanHours === 1) ? 60 : 180;
+  const totalMins = 30 + rightSpanMins; // 90 mins or 210 mins
+
+  // NOW position percentage (Always 30 mins from left!)
+  const nowPct = (30 / totalMins) * 100;
   if (nowInd) {
     nowInd.style.left = `${nowPct}%`;
   }
 
   const windowStartMs = nowMs - (30 * 60 * 1000); // -30m
-  const windowEndMs = nowMs + (180 * 60 * 1000);  // +180m (3h)
-  const totalWindowMs = 210 * 60 * 1000;
+  const windowEndMs = nowMs + (rightSpanMins * 60 * 1000);  // +60m or +180m
+  const totalWindowMs = totalMins * 60 * 1000;
 
   layer.innerHTML = '';
 
@@ -1016,7 +1051,9 @@ function centerTimelineNow() {
 
   const trackWidth = track.offsetWidth;
   const wrapperWidth = wrapper.offsetWidth;
-  const nowPx = trackWidth * 0.1428;
+  const rightSpanMins = (timelineSpanHours === 1) ? 60 : 180;
+  const nowPct = 30 / (30 + rightSpanMins);
+  const nowPx = trackWidth * nowPct;
   const scrollPos = nowPx - (wrapperWidth / 2);
 
   wrapper.scrollTo({
@@ -1043,6 +1080,14 @@ function setupUIEventListeners() {
         if (bossSec) bossSec.classList.add('active');
         if (timelineSec) timelineSec.classList.remove('active');
       }
+    });
+  });
+
+  // Timeline Span Toggle Buttons (1h vs 3h)
+  document.querySelectorAll('[data-span]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const spanVal = parseInt(e.currentTarget.dataset.span, 10);
+      setTimelineSpanHours(spanVal);
     });
   });
 

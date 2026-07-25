@@ -121,6 +121,7 @@ body {
 }
 
 .btn-pwa-install {
+  display: none; /* Hidden on desktop computers by default */
   background: rgba(251, 191, 36, 0.15);
   border-color: rgba(251, 191, 36, 0.4);
   color: #fde047;
@@ -257,6 +258,37 @@ body {
   color: var(--text-muted);
   font-weight: 400;
   margin-left: 0.3rem;
+}
+
+.timeline-span-toggle {
+  display: inline-flex;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 2px;
+  margin-left: auto;
+}
+
+.btn-span-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-span-toggle.active {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
 }
 
 .timeline-legend {
@@ -920,6 +952,10 @@ body {
     padding: 0.25rem 0.45rem;
     font-size: 0.68rem;
     border-radius: 12px;
+  }
+
+  .btn-pwa-install {
+    display: inline-flex; /* Shown ONLY on mobile devices */
   }
 
   .status-badge {

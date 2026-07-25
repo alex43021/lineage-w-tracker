@@ -61,7 +61,11 @@
       <!-- Section 1: Dynamic Timeline (-30m ~ +3h) -->
       <section class="section timeline-section view-tab-content active" id="tabContentTimeline">
         <div class="section-header">
-          <h2>⏳ 3.5小時 動態時間軸 <span class="timeline-subtitle">(-30m ~ 目前 ~ +3h)</span></h2>
+          <h2>⏳ 動態時間軸 <span class="timeline-subtitle" id="timelineSubtitle">(-30m ~ 目前 ~ +3h)</span></h2>
+          <div class="timeline-span-toggle">
+            <button type="button" class="btn-span-toggle" data-span="1">⏱️ 1小時</button>
+            <button type="button" class="btn-span-toggle active" data-span="3">⏱️ 3小時</button>
+          </div>
         </div>
 
         <div class="timeline-legend">
