@@ -749,44 +749,79 @@ function renderBossGrid() {
   });
 }
 
-function quickReportKillNow(bossName) {
-  if (!bossName) return;
+function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = '成員') {
+  if (!bossName || !deathDateObj) return;
 
-  const reporterName = '成員';
-  const now = new Date();
+  const cooldownMins = getBossCooldownMins(bossName);
+  const cooldownMs = cooldownMins * 60 * 1000;
+
+  const deathMs = deathDateObj.getTime();
+  const nextSpawnMs = deathMs + cooldownMs;
+  const nextSpawnDate = new Date(nextSpawnMs);
+
   const pad = (n) => String(n).padStart(2, '0');
-  const localIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const formatIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
+  const lastDeathIso = formatIso(deathDateObj);
+  const nextSpawnIso = formatIso(nextSpawnDate);
+
+  // Update local state immediately for < 50ms instant UI response
+  if (!bossStates[bossName]) {
+    bossStates[bossName] = { name: bossName };
+  }
+
+  bossStates[bossName].status = 'dead';
+  bossStates[bossName].last_death_time = lastDeathIso;
+  bossStates[bossName].next_spawn_time = nextSpawnIso;
+  bossStates[bossName].reported_by = reporterName;
+  bossStates[bossName].is_overdue = false;
+  bossStates[bossName].source = 'manual';
+
+  // Render local UI right away
+  renderBossGrid();
+  updateTimeline();
+  renderSequenceQueue();
+
+  // 1. Direct REST PUT to /boss_states/<bossName>.json for instant cloud sync to all members
+  const cleanUrl = currentDbUrl.replace(/\/$/, "");
+  const stateUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/boss_states/${encodeURIComponent(bossName)}.json`;
+  
+  fetch(stateUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(bossStates[bossName])
+  })
+  .then(res => {
+    if (res.ok) {
+      console.log(`Successfully updated boss_states for ${bossName} directly in Firebase.`);
+    }
+  })
+  .catch(err => console.error("Error updating boss_states:", err));
+
+  // 2. Also record in /reports/<reportId>.json for log history
   const reportId = 'rep_' + Date.now();
   const reportData = {
     boss_name: bossName,
     reported_by: reporterName,
-    time_type: 'now',
-    custom_time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    time_type: 'custom',
+    custom_time: `${pad(deathDateObj.getHours())}:${pad(deathDateObj.getMinutes())}`,
     passcode: currentPasscode,
-    timestamp: localIso,
+    timestamp: lastDeathIso,
     status: 'dead'
   };
-
-  const cleanUrl = currentDbUrl.replace(/\/$/, "");
   const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
-  
   fetch(reportUrl, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(reportData)
-  })
-  .then(res => {
-    if (res.ok) {
-      alert(`🎉 已通報 ${bossName} 剛剛擊殺！系統已廣播時間給所有成員。`);
-      fetchDirectRestData(currentDbUrl, currentPasscode);
-    } else {
-      alert('通報失敗，請確認網路連線。');
-    }
-  })
-  .catch(err => {
-    alert('通報發生錯誤：' + err.message);
-  });
+  }).catch(e => {});
+}
+
+function quickReportKillNow(bossName) {
+  if (!bossName) return;
+  const now = new Date();
+  applyAndBroadcastBossDeath(bossName, now, '成員');
+  alert(`🎉 已通報 ${bossName} 剛剛擊殺！預計重生時間已自動更新。`);
 }
 
 /* ==========================================================================
@@ -825,14 +860,12 @@ function openReportModal(bossName) {
   selectedBossForReport = bossName;
   document.getElementById('reportBossName').textContent = `指定擊殺時間：${bossName}`;
 
-  // Default to "custom" radio option when opening custom time modal
   const customRadio = document.querySelector('input[name="timeType"][value="custom"]');
   if (customRadio) customRadio.checked = true;
   
   const customGroup = document.getElementById('customTimeGroup');
   if (customGroup) customGroup.style.display = 'flex';
 
-  // Populate & Pre-fill 24h hour and minute dropdowns
   populate24hTimeSelectors();
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
@@ -862,7 +895,6 @@ function centerTimelineNow() {
 }
 
 function setupUIEventListeners() {
-  // Mobile Tab Switcher
   document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.mobile-tab-btn').forEach(b => b.classList.remove('active'));
@@ -883,10 +915,6 @@ function setupUIEventListeners() {
     });
   });
 
-  // Center NOW Button
-  document.getElementById('centerNowBtn')?.addEventListener('click', centerTimelineNow);
-
-  // PWA Mobile Install Button
   document.getElementById('pwaInstallBtn')?.addEventListener('click', async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -901,7 +929,6 @@ function setupUIEventListeners() {
   document.getElementById('closePwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
   document.getElementById('confirmPwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
 
-  // Radio button toggle for time type in manual report modal
   document.querySelectorAll('input[name="timeType"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
       const customGroup = document.getElementById('customTimeGroup');
@@ -923,7 +950,6 @@ function setupUIEventListeners() {
     });
   });
 
-  // Notification Toggle Button in Header
   document.getElementById('notifyToggleBtn')?.addEventListener('click', (e) => {
     notifyEnabled = !notifyEnabled;
     const btn = e.currentTarget;
@@ -935,12 +961,10 @@ function setupUIEventListeners() {
     }
   });
 
-  // Direct Test Notification Button in Header
   document.getElementById('testPushBtn')?.addEventListener('click', () => {
     requestAndTestNotification();
   });
 
-  // Boss Filter Buttons
   document.querySelectorAll('[data-boss-filter]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('[data-boss-filter]').forEach(b => b.classList.remove('active'));
@@ -950,7 +974,6 @@ function setupUIEventListeners() {
     });
   });
 
-  // Manual Report Form Submission
   document.getElementById('closeReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
   document.getElementById('cancelReportBtn')?.addEventListener('click', () => hideModal('reportModal'));
   document.getElementById('submitReportBtn')?.addEventListener('click', submitManualReport);
@@ -960,53 +983,22 @@ function submitManualReport() {
   if (!selectedBossForReport) return;
 
   const reporterName = '成員';
-  const timeType = 'custom';
-
   const d = new Date();
-  let customVal = '';
 
-  if (timeType === 'custom') {
-    const hh = document.getElementById('customHour')?.value || '00';
-    const mm = document.getElementById('customMinute')?.value || '00';
-    customVal = `${hh}:${mm}`;
-    d.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+  const hh = document.getElementById('customHour')?.value || '00';
+  const mm = document.getElementById('customMinute')?.value || '00';
+  
+  d.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+
+  // If selected custom time is in the future relative to current time, assume it occurred yesterday
+  const now = new Date();
+  if (d.getTime() > now.getTime()) {
+    d.setDate(d.getDate() - 1);
   }
 
-  const pad = (n) => String(n).padStart(2, '0');
-  const localIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-
-  const reportId = 'rep_' + Date.now();
-  const reportData = {
-    boss_name: selectedBossForReport,
-    reported_by: reporterName,
-    time_type: timeType,
-    custom_time: customVal,
-    passcode: currentPasscode,
-    timestamp: localIso,
-    status: 'dead'
-  };
-
-  // REST PUT for guaranteed submission
-  const cleanUrl = currentDbUrl.replace(/\/$/, "");
-  const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
-  
-  fetch(reportUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(reportData)
-  })
-  .then(res => {
-    if (res.ok) {
-      alert(`🎉 成功通報 ${selectedBossForReport} 已擊殺！系統將自動廣播給所有用戶。`);
-      hideModal('reportModal');
-      fetchDirectRestData(currentDbUrl, currentPasscode);
-    } else {
-      alert('通報失敗，請確認網路連線。');
-    }
-  })
-  .catch(err => {
-    alert('通報發生錯誤：' + err.message);
-  });
+  applyAndBroadcastBossDeath(selectedBossForReport, d, reporterName);
+  hideModal('reportModal');
+  alert(`🎉 成功通報 ${selectedBossForReport} 已擊殺！預計重生時間已自動更新。`);
 }
 
 function showModal(id) {
