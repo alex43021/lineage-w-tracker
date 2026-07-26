@@ -1649,10 +1649,11 @@ class MainWindow(QWidget):
         # Limit console log to 300 lines to avoid RAM growth over days
         doc = self.console_edit.document()
         if doc.blockCount() > 350:
+            from PySide6.QtGui import QTextCursor
             cursor = self.console_edit.textCursor()
-            cursor.movePosition(cursor.Start)
+            cursor.movePosition(QTextCursor.Start)
             for _ in range(doc.blockCount() - 300):
-                cursor.select(cursor.BlockUnderCursor)
+                cursor.select(QTextCursor.BlockUnderCursor)
                 cursor.removeSelectedText()
                 cursor.deleteChar()
 
