@@ -1,125 +1,96 @@
-# 👹 天堂W BOSS 雙端雲端監控與即時時間軸系統 (Lineage W Boss Tracker)
+# 天堂W BOSS 觀測與自動計時器 (Lineage W Boss Tracker)
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
-[![PySide6](https://img.shields.io/badge/PySide6-6.0%2B-green.svg)](https://pypi.org/project/PySide6/)
-[![PWA](https://img.shields.io/badge/PWA-Supported-purple.svg)](https://developer.mozilla.org/en-US/docs/Web/PWA)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-本專案為一套專為《天堂W》血盟設計的 **AI 自動對話辨識 (OCR) + 雲端即時同步 BOSS 重生計時系統**。包含 **Windows 桌面端自動監控程式 (Python PySide6)** 與 **手機/電腦 Web PWA 行動端介面**。
+一個為《天堂W》血盟設計的自動化 BOSS 出現與擊殺計時工具。包含 **Windows 桌面端擷圖辨識程式** 與 **手機/電腦 Web 介面 (PWA)**。
 
 ---
 
-## 🌟 核心特色與亮點
+## 📌 功能特點
 
-### 🖥️ 1. Windows 桌面監控端 (Python Desktop App)
-- **多視窗自動偵測**：自動辨識並同時捕捉多個《天堂W》遊戲視窗。
-- **純 Win32 CTypes 原生 GDI 擷圖**：後台視窗繪圖絕不卡頓，**連續運行 100+ 小時零 GDI Handle / 記憶體洩漏**。
-- **PaddleOCR 高精準度辨識**：採用旗艦級中文 OCR 模型，結合黃色系統字色彩遮罩與二值化預處理，精準擷取頭目出現與擊敗訊息。
-- **單行獨立抗性去重引擎**：訊息收回、刪除或修改時不影響去重機制，避免重複跳通知與訊息錯亂。
-- **白名單保護與彈性同義字容錯**：
-  - 含有 BOSS 名稱之訊息享有白名單免死金牌，**絕不受黑名單/萬用字元過濾條款誤殺**。
-  - 支援 `擊`、`敗`、`死`、`消`、`倒`、`現`、`生`、`臨` 等自然語意同義字辨識。
-- **非阻塞網路架構**：雲端 Ping 心跳與 OCR 主迴圈解耦，網路波動絕不卡死視窗擷圖。
+### 桌面監控端 (Windows / Python)
+- **多視窗辨識**：自動搜尋並同時監控多個《天堂W》遊戲視窗。
+- **後台視窗擷圖**：使用 Win32 API 進行 PrintWindow 後台擷圖，遊戲被遮擋或置於背景時仍可正常辨識。
+- **OCR 對話辨識**：採用 PaddleOCR 辨識對話框，配合黃色文字濾鏡與二值化預處理，減少雜訊干擾。
+- **訊息過濾與黑白名單**：
+  - 含有設定之 BOSS 名稱訊息自動優先保護，避免被過濾規則誤刪。
+  - 支援黑名單與 `*` 萬用字元排除雜訊（如 `*獲得*`、`*卡片*`）。
+  - 支援常見簡繁轉換與簡化同義字比對（如 `擊敗`、`出現`、`死亡`、`重生`）。
+- **去重與穩定性**：單行對話歷史比對，訊息被刪除或編輯時不影響去重；網路連線與辨識迴圈解耦，確保長時間運作穩定。
 
-### 📱 2. Web / PWA 行動端 (GitHub Pages Web App)
-- **動態時間軸 (1小時 / 3小時 視角切換)**：
-  - 提供 `⏱️ 1小時`（放大近距離）與 `⏱️ 3小時`（宏觀出王計畫）兩種視角切換。
-  - **目前時間左側永遠維持 30 分鐘 (-30m)**，軸線頂部直接顯示 24H 絕對時鐘時間（如 `21:45` ➔ `目前 22:00` ➔ `22:15`）。
-- **即時重生次序鏈 (Sequence Queue)**：照時間先後自動排序，顯示剩餘時間與各王怪預計點位。
-- **獨立擊殺通報與自動歷史救援**：
-  - 手機 PWA 點擊 `⚔️ 剛擊殺` 或 `🕒 指定時間` 可**直接獨立計算並同步至雲端**，即使電腦端離線也能流暢更新。
-  - 帶有 **自動歷史通報救援引擎**，若資料庫時間意外清空，啟動時自動掃描歷程並還原倒數。
-- **5 分鐘前雙重預警 (Sound + PWA Web Push)**：
-  - 支援 Web Audio API 擬真晶片警報音效。
-  - 完整支援 iOS 16.4+ Safari PWA 與 Android Chrome PWA 全螢幕原生推播。
+### 網頁 / 手機介面 (Web / PWA)
+- **動態時間軸 (1小時 / 3小時 切換)**：
+  - 提供 `1小時` 與 `3小時` 兩種範圍切換。
+  - 時間軸左側固定維持過去 30 分鐘 (`-30m`)，右側呈現未來預計重生時間。
+- **即時次序鏈**：依照頭目重生順序排列，方便確認下一個重生目標。
+- **手動通報與同步**：
+  - 可在手機網頁上點擊 `剛擊殺` 或指定時間進行通報。
+  - 網頁端會自動根據設定的 CD 計算並更新至雲端，電腦未開機時也能單獨運作。
+  - 帶有歷史通報備份還原機制，防止資料遺失。
+- **預警提醒 (音效 + 系統推播)**：
+  - 支援重生前 5 分鐘音效提醒。
+  - 支援網頁原生推播與 iOS / Android 手機 PWA 背景通知。
 
 ---
 
-## 🏗️ 系統架構圖 (Architecture)
+## 📐 系統架構
 
 ```mermaid
-flowchart TD
-    subgraph Game ["🎮 遊戲視窗"]
-        GW[天堂W 遊戲用戶端 (單/多開)]
-    end
-
-    subgraph Desktop ["🖥️ Windows 桌面端程式 (Python)"]
-        GDI[Win32 CTypes GDI Capturer] -->|無損截圖| OCR[PaddleOCR 引擎 + 黃字濾鏡]
-        OCR -->|提取對話| Dedup[單行獨立去重演算法]
-        Dedup -->|頭目規則比對| BossTrack[BossTracker 狀態機]
-        BossTrack -->|產生推播| WebPush[Web Push VAPID 發送器]
-    end
-
-    subgraph Cloud ["☁️ 雲端服務 (Firebase REST / Web Push)"]
-        FB_DB[(Firebase Realtime Database)]
-        VAPID[Web Push Service / FCM]
-    end
-
-    subgraph Mobile ["📱 行動端 / 網頁端 (GitHub Pages PWA)"]
-        PWA[Web App / iOS Safari / Android Chrome]
-        SW[ServiceWorker 背景推播]
-    end
-
-    GW -->|PrintWindow API| GDI
-    BossTrack -->|REST PUT/PATCH| FB_DB
-    WebPush -->|VAPID Push| VAPID
-    VAPID -->|系統通知| SW
-    SW -->|推播提醒| PWA
-    PWA <-->|Realtime Socket / REST| FB_DB
-    PWA -->|手動通報擊殺| FB_DB
+graph TD
+    A[天堂W 遊戲視窗] -->|PrintWindow API| B[Windows 桌面監控程式]
+    B -->|OCR 文字辨識與比對| C[BossTracker 邏輯處理]
+    C -->|REST API 同步| D[Firebase Realtime DB]
+    C -->|WebPush VAPID| E[Web Push 推播服務]
+    
+    D <-->|即時資料同步與擊殺通報| F[手機 / 電腦 Web PWA]
+    E -->|發送 5 分鐘預警| F
 ```
 
 ---
 
-## 🚀 快速開始 (Quick Start)
+## 🛠️ 安裝與執行
 
-### 1. 桌面監控端環境準備 (Python Desktop)
+### 1. 桌面端 (Windows)
 
-#### 軟體需求
-- Windows 10 / 11 64-bit
-- Python 3.9+ (建議 3.10 或 3.11)
+#### 環境需求
+- Windows 10 / 11 (64-bit)
+- Python 3.9 或以上
 
-#### 安裝步驟
+#### 執行步驟
 ```bash
-# 1. 複製專案
+# 複製專案
 git clone https://github.com/alex43021/lineage-w-tracker.git
 cd lineage-w-tracker
 
-# 2. 建立並啟用 Python 虛擬環境 (選用但推薦)
-python -m venv venv
-venv\Scripts\activate
-
-# 3. 安裝依賴套件
+# 安裝套件
 pip install -r requirements.txt
 
-# 4. 啟動桌面端 GUI 程式
+# 執行主程式
 python main.py
 ```
 
 ---
 
-### 2. 行動端 / 網頁端部署 (GitHub Pages PWA)
+### 2. 網頁端 (GitHub Pages 部署)
 
-本專案 `web` 資料夾（或根目錄）可直接免費部署於 **GitHub Pages**：
+可直接將 `web` 資料夾部署於 **GitHub Pages** 或其他靜態網頁託管服務：
 
-1. 將本專案 Push 至您的 GitHub 儲存庫。
-2. 進入 GitHub Repository 的 **Settings** ➔ **Pages**。
-3. 在 **Branch** 選擇 `main`，資料夾選擇 `/root` 或 `/web` 並點擊 **Save**。
-4. 部署完成後即可獲得 PWA 專屬網址（例如：`https://YOUR_USERNAME.github.io/lineage-w-tracker/`）。
+1. 將本專案 Push 至 GitHub 儲存庫。
+2. 至專案 **Settings** ➔ **Pages**。
+3. **Source** 選擇 `Deploy from a branch`，Branch 選擇 `main` / `/root` (或 `/web`) 後儲存。
+4. 完成後即可取得網頁連結（如 `https://username.github.io/lineage-w-tracker/`）。
 
-#### 📱 加到手機桌面 (PWA 安裝)
-- **iOS Safari**：點擊下方「分享」圖示 ➔ 選擇「加入主畫面」。
-- **Android Chrome**：點擊右上角選單 ➔ 選擇「安裝應用程式」或「加到主畫面」。
+#### 手機安裝為 APP (PWA)
+- **iOS (Safari)**：點選分享按鈕 ➔ 「加入主畫面」。
+- **Android (Chrome)**：點選選單 ➔ 「安裝應用程式」或「新增至主畫面」。
 
 ---
 
-## ⚙️ Firebase 資料庫配置指南 (Firebase Setup)
+## ⚙️ Firebase 資料庫設定
 
-專案使用 **Firebase Realtime Database** 作為雲端同步中樞，設定完全免費：
+專案使用 **Firebase Realtime Database** 進行雙端資料同步：
 
-1. 前往 [Firebase Console](https://console.firebase.google.com/) 並建立新專案。
-2. 建立 **Realtime Database**，資料庫位置建議選擇 `asia-southeast1` (新加坡/亞洲)。
-3. 在 **規則 (Rules)** 頁籤中，將規則修改為以下開放讀寫設定並點擊 **發布**：
+1. 前往 [Firebase Console](https://console.firebase.google.com/) 建立專案。
+2. 建立 **Realtime Database**（建議選擇亞洲區域）。
+3. 於資料庫 **規則 (Rules)** 修改為開放讀寫：
    ```json
    {
      "rules": {
@@ -128,46 +99,30 @@ python main.py
      }
    }
    ```
-4. 複製您的 Database URL（例如：`https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app`）。
-5. 於桌面端程式的 **⚙️ 系統設定** 中填入 URL 與血盟專屬通行碼 (Passcode) 即可！
+4. 複製 Database URL（如 `https://xxx-default-rtdb.asia-southeast1.firebasedatabase.app`）。
+5. 於桌面端程式的 **系統設定** 頁面填入資料庫網址與通行碼。
 
 ---
 
-## 📝 規則與過濾設定說明
+## 📋 規則與排除設定
 
-### 👹 BOSS 規則設定
-可在桌面端 GUI 靈活調整每隻 BOSS 的參數：
-- **BOSS 名稱**：例如 `巴風特`。
-- **出現關鍵字**：例如 `巴風特, 出現`。
-- **擊敗關鍵字**：例如 `巴風特, 擊敗`。
-- **計時 CD 時間 (分鐘)**：例如 `240` 分鐘（修改後自動重新計算當前下輪重生時間並同步雲端）。
+### BOSS 規則設定
+可在桌面介面中新增或變更 BOSS 資訊：
+- **BOSS 名稱**：例如 `巴風特`
+- **出現關鍵字**：以逗號分隔，例如 `巴風特, 出現`
+- **擊敗關鍵字**：以逗號分隔，例如 `巴風特, 擊敗`
+- **CD 時間 (分鐘)**：例如 `240`
 
-### 🚫 排除訊息 (黑名單萬用字元)
-在桌面端可設定過濾雜訊，支援 `*` 與 `?` 萬用字元，例如：
+### 排除訊息 (黑名單)
+可用於過濾非相關系統訊息，支援 `*` 萬用字元：
 - `*獲得*`
 - `*卡片*`
 - `*已登入*`
-- `*派遣*`
 
-> 💡 **保護機制**：凡是包含 BOSS 名稱的對話，系統會自動享有白名單保護，**永遠不會被黑名單過濾掉**。
-
----
-
-## 🛠️ 常見問題與疑難排解 (FAQ)
-
-#### Q1: 為什麼手機上點擊通報擊殺後，重生時間還是舊的？
-- 請確認您的手機已經連線至相同的 Firebase URL 與血盟通行碼。
-- 專案已支援**網頁端獨立 CD 重算**，若先前桌面端有更改過 CD（如 480m 降為 240m），請在手機上重新整理網頁，系統會自動載入最新 CD 規則。
-
-#### Q2: 桌面端長時間運行會不會卡頓或記憶體暴增？
-- 不會！本專案採用**純 CTypes 原生 Win32 GDI HDC/HBITMAP 手動管理**與 `QTextCursor` 滾動控制，控制代碼恆定維持在 ~30 個，並有自動 OS Working Set 記憶體修剪機制。
-
-#### Q3: 桌面端抓不到遊戲視窗怎麼辦？
-- 請確保《天堂W》遊戲視窗**未處於最小化狀態**（支援背景遮擋或置於其他視窗下方）。
-- 若遊戲以系統管理員權限執行，請同樣以 **系統管理員身份執行 `python main.py`**。
+*備註：若訊息包含已設定之 BOSS 名稱，會優先視為有效訊息，不會被黑名單過濾。*
 
 ---
 
-## 📄 授權條款 (License)
+## 📄 授權
 
-本專案採用 [MIT License](LICENSE) 開源授權，歡迎自由修改與衍生擴充。
+本專案採用 [MIT License](LICENSE) 授權。
