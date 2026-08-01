@@ -342,6 +342,39 @@ function getBossCooldownMins(bossName) {
   return 60;
 }
 
+function calculateNextFixedSpawnMs(rule, nowMs = Date.now()) {
+  if (!rule || !Array.isArray(rule.fixed_times) || rule.fixed_times.length === 0) return null;
+
+  const now = new Date(nowMs);
+  const validDays = (Array.isArray(rule.days) && rule.days.length > 0) ? rule.days : [0, 1, 2, 3, 4, 5, 6];
+
+  let minCandidateMs = null;
+
+  for (let dayOffset = 0; dayOffset <= 8; dayOffset++) {
+    const candidateDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+    const dayOfWeek = candidateDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+
+    if (!validDays.includes(dayOfWeek)) continue;
+
+    for (const timeStr of rule.fixed_times) {
+      const parts = String(timeStr).trim().split(':');
+      if (parts.length < 2) continue;
+      const hh = parseInt(parts[0], 10);
+      const mm = parseInt(parts[1], 10);
+      if (isNaN(hh) || isNaN(mm)) continue;
+
+      const candidateMs = new Date(candidateDate.getFullYear(), candidateDate.getMonth(), candidateDate.getDate(), hh, mm, 0, 0).getTime();
+
+      if (candidateMs > nowMs) {
+        if (minCandidateMs === null || candidateMs < minCandidateMs) {
+          minCandidateMs = candidateMs;
+        }
+      }
+    }
+  }
+  return minCandidateMs;
+}
+
 function getEffectiveBossState(boss, nowMs = Date.now()) {
   let isOverdue = false;
   let displayName = boss.name;
@@ -349,22 +382,31 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
   const cooldownMins = getBossCooldownMins(boss.name);
   const cooldownMs = cooldownMins * 60 * 1000;
 
+  const bossRule = bossRules.find(r => r.name === boss.name);
+  const isFixed = (bossRule && bossRule.type === 'fixed') || (boss.type === 'fixed');
+
   let spawnMs = null;
-  const deathMs = parseIsoToEpochMs(boss.last_death_time);
-
-  if (deathMs && !isNaN(deathMs)) {
-    // Dynamically recalculate next spawn time using active CD rule
-    spawnMs = deathMs + cooldownMs;
+  if (isFixed && bossRule) {
+    spawnMs = calculateNextFixedSpawnMs(bossRule, nowMs);
+    if (!spawnMs) {
+      spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
+    }
   } else {
-    spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
-  }
+    const deathMs = parseIsoToEpochMs(boss.last_death_time);
+    if (deathMs && !isNaN(deathMs)) {
+      // Dynamically recalculate next spawn time using active CD rule
+      spawnMs = deathMs + cooldownMs;
+    } else {
+      spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
+    }
 
-  if (spawnMs && !isNaN(spawnMs)) {
-    if (spawnMs <= nowMs && boss.status !== 'alive') {
-      isOverdue = true;
-      // Auto roll forward to the next cycle using exact boss cooldown
-      while (spawnMs <= nowMs) {
-        spawnMs += cooldownMs;
+    if (spawnMs && !isNaN(spawnMs)) {
+      if (spawnMs <= nowMs && boss.status !== 'alive') {
+        isOverdue = true;
+        // Auto roll forward to the next cycle using exact boss cooldown
+        while (spawnMs <= nowMs) {
+          spawnMs += cooldownMs;
+        }
       }
     }
   }
@@ -378,7 +420,8 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
     spawnMs,
     cooldownMins,
     cooldownMs,
-    isOverdue
+    isOverdue,
+    isFixed
   };
 }
 
@@ -887,9 +930,22 @@ function renderBossGrid() {
     const nextSpawnStr = eff.spawnMs ? formatLocalTime24(eff.spawnMs) : '--:--';
     const statusText = boss.status === 'alive' ? '已出現' : (boss.status === 'dead' ? '倒數中' : (eff.isOverdue ? '倒數中(過)' : '未知'));
 
+    const bossRule = bossRules.find(r => r.name === boss.name);
+    let typeBadgeHtml = '';
+    if (eff.isFixed && bossRule) {
+      const days = bossRule.days || [];
+      const dayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+      let dayText = '每日';
+      if (days.length > 0 && days.length < 7) {
+        dayText = '週' + days.map(d => dayLabels[d]).join('、');
+      }
+      const timesText = (bossRule.fixed_times || []).join(', ');
+      typeBadgeHtml = `<span class="fixed-type-badge">📅 定時: ${dayText} ${timesText}</span>`;
+    }
+
     card.innerHTML = `
       <div class="boss-info">
-        <span class="boss-name">👹 ${eff.displayName}</span>
+        <span class="boss-name">👹 ${eff.displayName} ${typeBadgeHtml}</span>
         <span class="boss-status-label">${statusText}</span>
       </div>
       <div class="boss-timer-container">

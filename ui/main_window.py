@@ -1326,23 +1326,70 @@ class MainWindow(QWidget):
         edit_vbox.setSpacing(10)
 
         self.rule_name_edit = QLineEdit()
-        self.rule_name_edit.setPlaceholderText("例如：巴風特")
+        self.rule_name_edit.setPlaceholderText("例如：巴風特 / 克特")
+        
+        self.rule_type_combo = QComboBox()
+        self.rule_type_combo.addItem("⏱️ 週期王 (擊殺後 CD 計時)", "cooldown")
+        self.rule_type_combo.addItem("📅 固定時間王 (每日 / 指定星期與時段)", "fixed")
+        
         self.rule_spawn_edit = QLineEdit()
         self.rule_spawn_edit.setPlaceholderText("逗號分隔，例如：巴風特, 出現")
         self.rule_death_edit = QLineEdit()
         self.rule_death_edit.setPlaceholderText("逗號分隔，例如：巴風特, 擊")
+
+        # Container for Cooldown SpinBox
+        self.cooldown_container = QWidget()
+        cooldown_lay = QVBoxLayout(self.cooldown_container)
+        cooldown_lay.setContentsMargins(0, 0, 0, 0)
         self.rule_cooldown_spin = QSpinBox()
-        self.rule_cooldown_spin.setRange(1, 1440)
+        self.rule_cooldown_spin.setRange(1, 10080)
         self.rule_cooldown_spin.setValue(120)
+        cooldown_lay.addWidget(QLabel("計時 CD 時間 (分鐘):"))
+        cooldown_lay.addWidget(self.rule_cooldown_spin)
+
+        # Container for Fixed Schedule Options
+        self.fixed_container = QWidget()
+        fixed_lay = QVBoxLayout(self.fixed_container)
+        fixed_lay.setContentsMargins(0, 0, 0, 0)
+        fixed_lay.setSpacing(6)
+        
+        fixed_lay.addWidget(QLabel("固定出生星期 (選取發動日期，不勾選則預設每日):"))
+        days_hb = QHBoxLayout()
+        days_hb.setSpacing(6)
+        self.day_checkboxes = []
+        # Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=0
+        day_items = [("一", 1), ("二", 2), ("三", 3), ("四", 4), ("五", 5), ("六", 6), ("日", 0)]
+        for label, day_num in day_items:
+            chk = QCheckBox(label)
+            chk.setChecked(True)
+            chk.setProperty("day_num", day_num)
+            days_hb.addWidget(chk)
+            self.day_checkboxes.append(chk)
+
+        self.btn_select_all_days = QPushButton("全選/每日")
+        self.btn_select_all_days.setFixedHeight(24)
+        self.btn_select_all_days.clicked.connect(self.toggle_all_day_checkboxes)
+        days_hb.addWidget(self.btn_select_all_days)
+        fixed_lay.addLayout(days_hb)
+
+        fixed_lay.addWidget(QLabel("固定出生時段 24H (逗號分隔多個時間，例如：18:00, 22:00):"))
+        self.rule_fixed_times_edit = QLineEdit()
+        self.rule_fixed_times_edit.setPlaceholderText("例如：18:00, 22:00")
+        fixed_lay.addWidget(self.rule_fixed_times_edit)
+
+        self.rule_type_combo.currentIndexChanged.connect(self.on_rule_type_changed)
+        self.fixed_container.setVisible(False)
 
         edit_vbox.addWidget(QLabel("BOSS 名稱:"))
         edit_vbox.addWidget(self.rule_name_edit)
+        edit_vbox.addWidget(QLabel("頭目類型:"))
+        edit_vbox.addWidget(self.rule_type_combo)
         edit_vbox.addWidget(QLabel("重生關鍵字 (逗號分隔):"))
         edit_vbox.addWidget(self.rule_spawn_edit)
         edit_vbox.addWidget(QLabel("死亡關鍵字 (逗號分隔):"))
         edit_vbox.addWidget(self.rule_death_edit)
-        edit_vbox.addWidget(QLabel("計時 CD 時間 (分鐘):"))
-        edit_vbox.addWidget(self.rule_cooldown_spin)
+        edit_vbox.addWidget(self.cooldown_container)
+        edit_vbox.addWidget(self.fixed_container)
 
         btn_layout = QHBoxLayout()
         add_update_btn = QPushButton("新增 / 更新")
@@ -1411,6 +1458,21 @@ class MainWindow(QWidget):
         # Auto-check existing Firebase connection on startup
         QTimer.singleShot(300, lambda: self.test_firebase_connection_from_ui(show_popup=False))
 
+    def on_rule_type_changed(self, index):
+        rule_type = self.rule_type_combo.currentData()
+        if rule_type == "fixed":
+            self.cooldown_container.setVisible(False)
+            self.fixed_container.setVisible(True)
+        else:
+            self.cooldown_container.setVisible(True)
+            self.fixed_container.setVisible(False)
+
+    def toggle_all_day_checkboxes(self):
+        all_checked = all(chk.isChecked() for chk in self.day_checkboxes)
+        new_state = not all_checked
+        for chk in self.day_checkboxes:
+            chk.setChecked(new_state)
+
     def populate_boss_combo(self):
         self.correct_boss_combo.clear()
         for rule in self.settings.get("boss_rules", []):
@@ -1419,18 +1481,36 @@ class MainWindow(QWidget):
     def populate_rules_list(self):
         self.rules_list.clear()
         for rule in self.settings.get("boss_rules", []):
-            item = QListWidgetItem(rule["name"])
+            rule_type = rule.get("type", "cooldown")
+            tag = " [📅定時]" if rule_type == "fixed" else ""
+            item = QListWidgetItem(f"{rule['name']}{tag}")
+            item.setData(Qt.UserRole, rule["name"])
             self.rules_list.addItem(item)
 
     def load_boss_rule_details(self, item):
-        boss_name = item.text()
+        boss_name = item.data(Qt.UserRole) or item.text().split(" ")[0]
         rules = self.settings.get("boss_rules", [])
         for rule in rules:
             if rule["name"] == boss_name:
                 self.rule_name_edit.setText(rule["name"])
                 self.rule_spawn_edit.setText(", ".join(rule.get("spawn_keywords", [])))
                 self.rule_death_edit.setText(", ".join(rule.get("death_keywords", [])))
-                self.rule_cooldown_spin.setValue(rule.get("cooldown_mins", 60))
+                
+                rule_type = rule.get("type", "cooldown")
+                idx = self.rule_type_combo.findData(rule_type)
+                if idx >= 0:
+                    self.rule_type_combo.setCurrentIndex(idx)
+                
+                if rule_type == "fixed":
+                    days = rule.get("days", [0, 1, 2, 3, 4, 5, 6])
+                    for chk in self.day_checkboxes:
+                        day_num = chk.property("day_num")
+                        chk.setChecked(day_num in days)
+                    
+                    fixed_times = rule.get("fixed_times", ["18:00"])
+                    self.rule_fixed_times_edit.setText(", ".join(fixed_times))
+                else:
+                    self.rule_cooldown_spin.setValue(rule.get("cooldown_mins", 120))
                 break
 
     def add_or_update_boss_rule(self):
@@ -1441,7 +1521,17 @@ class MainWindow(QWidget):
             
         spawn_kws = [k.strip() for k in self.rule_spawn_edit.text().split(",") if k.strip()]
         death_kws = [k.strip() for k in self.rule_death_edit.text().split(",") if k.strip()]
+        rule_type = self.rule_type_combo.currentData()
         cooldown = self.rule_cooldown_spin.value()
+        
+        checked_days = [chk.property("day_num") for chk in self.day_checkboxes if chk.isChecked()]
+        if not checked_days:
+            checked_days = [0, 1, 2, 3, 4, 5, 6] # Default to all days if none checked
+            
+        fixed_times_str = self.rule_fixed_times_edit.text().strip()
+        fixed_times = [t.strip() for t in fixed_times_str.split(",") if t.strip()]
+        if rule_type == "fixed" and not fixed_times:
+            fixed_times = ["18:00"]
         
         rules = self.settings.setdefault("boss_rules", [])
         
@@ -1449,18 +1539,24 @@ class MainWindow(QWidget):
         found = False
         for rule in rules:
             if rule["name"] == name:
+                rule["type"] = rule_type
                 rule["spawn_keywords"] = spawn_kws
                 rule["death_keywords"] = death_kws
                 rule["cooldown_mins"] = cooldown
+                rule["days"] = checked_days
+                rule["fixed_times"] = fixed_times
                 found = True
                 break
                 
         if not found:
             rules.append({
                 "name": name,
+                "type": rule_type,
                 "spawn_keywords": spawn_kws,
                 "death_keywords": death_kws,
-                "cooldown_mins": cooldown
+                "cooldown_mins": cooldown,
+                "days": checked_days,
+                "fixed_times": fixed_times
             })
             
         self.populate_rules_list()

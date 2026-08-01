@@ -22,32 +22,95 @@ class BossTracker:
         self.states = {}
         self.initialize_states()
 
+    @staticmethod
+    def calculate_next_fixed_spawn(days=None, fixed_times=None, reference_dt=None):
+        """
+        Calculate the next upcoming ISO datetime string for a fixed schedule boss.
+        days: List of integers (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat).
+              If empty or None, defaults to all days [0, 1, 2, 3, 4, 5, 6] (Daily).
+        fixed_times: List of HH:MM strings e.g. ["18:00", "22:00"].
+        """
+        if not reference_dt:
+            reference_dt = datetime.now()
+        if not fixed_times:
+            return None
+            
+        valid_days = days if (days is not None and len(days) > 0) else [0, 1, 2, 3, 4, 5, 6]
+        
+        # Python datetime.weekday(): Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+        # Convert JS/Standard 0=Sun to Python weekday:
+        py_valid_days = set([(int(d) - 1) % 7 for d in valid_days])
+
+        min_candidate = None
+
+        for day_offset in range(8):
+            candidate_date = (reference_dt + timedelta(days=day_offset)).date()
+            if candidate_date.weekday() not in py_valid_days:
+                continue
+
+            for time_str in fixed_times:
+                try:
+                    parts = str(time_str).strip().split(':')
+                    if len(parts) < 2:
+                        continue
+                    hh, mm = int(parts[0]), int(parts[1])
+                    candidate_dt = datetime.combine(candidate_date, datetime.min.time()).replace(hour=hh, minute=mm)
+                    
+                    if candidate_dt > reference_dt:
+                        if min_candidate is None or candidate_dt < min_candidate:
+                            min_candidate = candidate_dt
+                except Exception:
+                    pass
+
+        return min_candidate.isoformat() if min_candidate else None
+
     def initialize_states(self):
         """Initialize state dictionary for all bosses."""
         for rule in self.rules:
             name = rule["name"]
+            rule_type = rule.get("type", "cooldown")
+            days = rule.get("days", [0, 1, 2, 3, 4, 5, 6])
+            fixed_times = rule.get("fixed_times", ["18:00"])
+            cooldown_mins = rule.get("cooldown_mins", 60)
+
+            next_fixed = None
+            if rule_type == "fixed":
+                next_fixed = self.calculate_next_fixed_spawn(days, fixed_times, datetime.now())
+
             self.states[name] = {
                 "name": name,
+                "type": rule_type,
                 "status": "unknown",          # "unknown", "alive", "dead"
                 "last_spawn_time": None,      # ISO timestamp
                 "last_death_time": None,      # ISO timestamp
-                "next_spawn_time": None,      # ISO timestamp
-                "source": "none",             # "none", "ocr", "manual"
+                "next_spawn_time": next_fixed, # ISO timestamp
+                "source": "none",             # "none", "ocr", "manual", "fixed_schedule"
                 "reported_by": "system",
-                "cooldown_mins": rule.get("cooldown_mins", 60)
+                "days": days,
+                "fixed_times": fixed_times,
+                "cooldown_mins": cooldown_mins
             }
 
     def set_rules(self, rules):
         self.rules = rules
         new_states = {}
-        from datetime import datetime, timedelta
         for rule in self.rules:
             name = rule["name"]
+            rule_type = rule.get("type", "cooldown")
+            days = rule.get("days", [0, 1, 2, 3, 4, 5, 6])
+            fixed_times = rule.get("fixed_times", ["18:00"])
             cooldown_mins = rule.get("cooldown_mins", 60)
+
             if name in self.states:
                 st = self.states[name]
+                st["type"] = rule_type
                 st["cooldown_mins"] = cooldown_mins
-                if st.get("last_death_time"):
+                st["days"] = days
+                st["fixed_times"] = fixed_times
+                
+                if rule_type == "fixed":
+                    st["next_spawn_time"] = self.calculate_next_fixed_spawn(days, fixed_times, datetime.now())
+                elif st.get("last_death_time"):
                     try:
                         death_dt = datetime.fromisoformat(st["last_death_time"])
                         next_dt = death_dt + timedelta(minutes=cooldown_mins)
@@ -56,14 +119,20 @@ class BossTracker:
                         logger.error(f"Failed to recalculate next_spawn_time for {name}: {e}")
                 new_states[name] = st
             else:
+                next_fixed = None
+                if rule_type == "fixed":
+                    next_fixed = self.calculate_next_fixed_spawn(days, fixed_times, datetime.now())
                 new_states[name] = {
                     "name": name,
+                    "type": rule_type,
                     "status": "unknown",
                     "last_spawn_time": None,
                     "last_death_time": None,
-                    "next_spawn_time": None,
+                    "next_spawn_time": next_fixed,
                     "source": "none",
                     "reported_by": "system",
+                    "days": days,
+                    "fixed_times": fixed_times,
                     "cooldown_mins": cooldown_mins
                 }
         self.states = new_states
