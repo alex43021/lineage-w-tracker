@@ -1048,11 +1048,20 @@ function renderBossGrid() {
 function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = '成員') {
   if (!bossName || !deathDateObj) return;
 
-  const cooldownMins = getBossCooldownMins(bossName);
-  const cooldownMs = cooldownMins * 60 * 1000;
+  const bossRule = bossRules.find(r => r.name === bossName);
+  const isFixed = bossRule && bossRule.type === 'fixed';
 
   const deathMs = deathDateObj.getTime();
-  const nextSpawnMs = deathMs + cooldownMs;
+  let nextSpawnMs = null;
+
+  if (isFixed) {
+    nextSpawnMs = calculateNextFixedSpawnMs(bossRule, deathMs);
+  }
+  if (!nextSpawnMs) {
+    const cooldownMins = getBossCooldownMins(bossName);
+    nextSpawnMs = deathMs + (cooldownMins * 60 * 1000);
+  }
+
   const nextSpawnDate = new Date(nextSpawnMs);
 
   const pad = (n) => String(n).padStart(2, '0');

@@ -314,9 +314,18 @@ class BossTracker:
 
         state = self.states[boss_name]
         time_str = time_obj.isoformat()
-        cooldown_delta = timedelta(minutes=state["cooldown_mins"])
-        next_spawn_time = time_obj + cooldown_delta
-        next_spawn_str = next_spawn_time.isoformat()
+
+        if state.get("type") == "fixed":
+            next_spawn_str = self.calculate_next_fixed_spawn(
+                state.get("days", [0, 1, 2, 3, 4, 5, 6]),
+                state.get("fixed_times", ["18:00"]),
+                time_obj
+            )
+            next_spawn_time = datetime.fromisoformat(next_spawn_str) if next_spawn_str else time_obj
+        else:
+            cooldown_delta = timedelta(minutes=state["cooldown_mins"])
+            next_spawn_time = time_obj + cooldown_delta
+            next_spawn_str = next_spawn_time.isoformat()
 
         # Conflict resolution logic
         if state.get("last_death_time"):
