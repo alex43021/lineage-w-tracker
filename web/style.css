@@ -257,6 +257,9 @@ body {
   font-size: 0.82rem;
   color: var(--text-muted);
   font-weight: 400;
+  margin-left: 0.3rem;
+}
+
 .boss-type-bar {
   display: flex;
   align-items: center;
