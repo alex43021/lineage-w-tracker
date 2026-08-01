@@ -354,22 +354,23 @@ body {
 .legend-future .dot { background-color: var(--accent-blue); }
 .legend-past .dot { background-color: var(--status-unknown); }
 
-/* Timeline Touch-Scrollable Wrapper */
+/* Timeline Responsive Container (Fluid Width & No Scrollbar) */
 .timeline-wrapper {
   margin-top: 0.5rem;
   position: relative;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: hidden;
+  width: 100%;
   padding: 0.75rem 0 1rem 0;
-  -webkit-overflow-scrolling: touch;
   border-radius: 12px;
+  box-sizing: border-box;
 }
 
 .timeline-track-container {
   width: 100%;
-  min-width: 680px; /* Spacious width for touch devices */
+  max-width: 100%;
   position: relative;
   padding: 0 10px;
+  box-sizing: border-box;
 }
 
 /* Timeline Scale Header (Absolute 24H Times) */
