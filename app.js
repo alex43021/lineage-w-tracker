@@ -346,10 +346,21 @@ function getBossCooldownMins(bossName) {
 }
 
 function calculateNextFixedSpawnMs(rule, nowMs = Date.now()) {
-  if (!rule || !Array.isArray(rule.fixed_times) || rule.fixed_times.length === 0) return null;
+  if (!rule) return null;
+
+  let fixedTimesList = [];
+  if (Array.isArray(rule.fixed_times)) {
+    fixedTimesList = rule.fixed_times;
+  } else if (typeof rule.fixed_times === 'string') {
+    fixedTimesList = rule.fixed_times.split(',').map(t => t.trim()).filter(Boolean);
+  }
+  if (fixedTimesList.length === 0) return null;
 
   const now = new Date(nowMs);
-  const validDays = (Array.isArray(rule.days) && rule.days.length > 0) ? rule.days : [0, 1, 2, 3, 4, 5, 6];
+  let validDays = [0, 1, 2, 3, 4, 5, 6];
+  if (Array.isArray(rule.days) && rule.days.length > 0) {
+    validDays = rule.days.map(Number);
+  }
 
   let minCandidateMs = null;
 
@@ -359,7 +370,7 @@ function calculateNextFixedSpawnMs(rule, nowMs = Date.now()) {
 
     if (!validDays.includes(dayOfWeek)) continue;
 
-    for (const timeStr of rule.fixed_times) {
+    for (const timeStr of fixedTimesList) {
       const parts = String(timeStr).trim().split(':');
       if (parts.length < 2) continue;
       const hh = parseInt(parts[0], 10);
@@ -502,6 +513,24 @@ function updateBossTypeToggleUI() {
 }
 
 function getActiveBosses() {
+  // Ensure every boss rule in bossRules has a state entry in bossStates
+  if (Array.isArray(bossRules)) {
+    bossRules.forEach(rule => {
+      if (rule.name && !bossStates[rule.name]) {
+        bossStates[rule.name] = {
+          name: rule.name,
+          type: rule.type || 'cooldown',
+          status: 'unknown',
+          last_spawn_time: null,
+          last_death_time: null,
+          next_spawn_time: null,
+          source: 'fixed_schedule',
+          reported_by: 'system'
+        };
+      }
+    });
+  }
+
   const allBosses = Object.values(bossStates);
   let activeList = allBosses;
 
