@@ -3,8 +3,13 @@ let db = null;
 let firebaseApp = null;
 let currentPasscode = "123456789";
 let currentDbUrl = "https://wchat-6ea90-default-rtdb.asia-southeast1.firebasedatabase.app/";
+const defaultBossRules = [
+  { name: "克特", type: "fixed", days: [0, 1, 2, 3, 4, 5, 6], fixed_times: ["18:00"], spawn_keywords: ["克特", "出現"], death_keywords: ["克特", "擊敗"] },
+  { name: "巨大飛龍", type: "fixed", days: [3], fixed_times: ["19:00"], spawn_keywords: ["巨大飛龍", "出現"], death_keywords: ["巨大飛龍", "擊敗"] }
+];
+
 let bossStates = {};
-let bossRules = [];
+let bossRules = defaultBossRules;
 let localTimers = {};
 let notifiedSpawns = new Set(); // Prevent duplicate 5-minute notifications for the same spawn
 let notifyEnabled = false;
@@ -194,12 +199,14 @@ async function fetchDirectRestData(url, passcode) {
 }
 
 function normalizeBossRules(data) {
-  if (!data) return [];
-  if (Array.isArray(data)) return data.filter(Boolean);
-  if (typeof data === 'object') {
-    return Object.values(data).filter(Boolean);
+  if (!data) return defaultBossRules;
+  let rules = [];
+  if (Array.isArray(data)) {
+    rules = data.filter(Boolean);
+  } else if (typeof data === 'object') {
+    rules = Object.values(data).filter(Boolean);
   }
-  return [];
+  return rules.length > 0 ? rules : defaultBossRules;
 }
 
 // Initialize Firebase Realtime Database

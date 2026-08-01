@@ -14,6 +14,24 @@
   "vapid_public_key": "BDrMv5_9le2P7MLW9RNLka-OxiesJ_EibpbsAeBTrFjAbyQCLHSypIy83K9pPkUJrCGB22mV9rEUVOSogGFB0do",
   "boss_rules": [
     {
+      "name": "克特",
+      "type": "fixed",
+      "days": [0, 1, 2, 3, 4, 5, 6],
+      "fixed_times": ["18:00"],
+      "spawn_keywords": ["克特", "出現"],
+      "death_keywords": ["克特", "擊敗"],
+      "cooldown_mins": 1440
+    },
+    {
+      "name": "巨大飛龍",
+      "type": "fixed",
+      "days": [3],
+      "fixed_times": ["19:00"],
+      "spawn_keywords": ["巨大飛龍", "出現"],
+      "death_keywords": ["巨大飛龍", "擊敗"],
+      "cooldown_mins": 10080
+    },
+    {
       "name": "屠殺者莫利提亞",
       "spawn_keywords": [
         "屠殺者莫利提亞開始尋找目標。"
