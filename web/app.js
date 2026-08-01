@@ -156,14 +156,15 @@ async function fetchDirectRestData(url, passcode) {
   try {
     const cleanUrl = url.replace(/\/$/, "");
 
-    // 1. Fetch remote boss rules first to ensure correct CD times (e.g. 240m instead of default 480m)
+    // 1. Fetch remote boss rules
     const rulesUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_rules.json`;
     try {
       const rulesRes = await fetch(rulesUrl);
       if (rulesRes.ok) {
         const rulesData = await rulesRes.json();
-        if (Array.isArray(rulesData) && rulesData.length > 0) {
-          bossRules = rulesData;
+        const normRules = normalizeBossRules(rulesData);
+        if (normRules.length > 0) {
+          bossRules = normRules;
           console.log("Successfully fetched remote boss_rules via REST:", bossRules);
         }
       }
@@ -190,6 +191,15 @@ async function fetchDirectRestData(url, passcode) {
   } catch (e) {
     console.log("REST fallback fetch failed:", e);
   }
+}
+
+function normalizeBossRules(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data.filter(Boolean);
+  if (typeof data === 'object') {
+    return Object.values(data).filter(Boolean);
+  }
+  return [];
 }
 
 // Initialize Firebase Realtime Database
@@ -255,8 +265,9 @@ function startSyncListeners() {
   // 2. Sync BOSS Rules
   db.ref(`lineage_w_tracker/${currentPasscode}/boss_rules`).on('value', (snapshot) => {
     const data = snapshot.val();
-    if (Array.isArray(data)) {
-      bossRules = data;
+    const normRules = normalizeBossRules(data);
+    if (normRules.length > 0) {
+      bossRules = normRules;
       renderBossGrid();
       updateTimeline();
       renderSequenceQueue();
