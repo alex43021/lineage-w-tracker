@@ -12,6 +12,8 @@ let currentBossFilter = "all";
 let selectedBossForReport = null;
 let deferredPrompt = null;
 let timelineSpanHours = parseInt(localStorage.getItem('lw_timeline_span') || "3", 10);
+let showCooldownBosses = localStorage.getItem('lw_show_cooldown') !== 'false';
+let showFixedBosses = localStorage.getItem('lw_show_fixed') !== 'false';
 
 // Intercept browser PWA install prompt
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -31,6 +33,7 @@ if ('serviceWorker' in navigator) {
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
+  updateBossTypeToggleUI();
   setTimelineSpanHours(timelineSpanHours);
   
   // Start 1-second interval timer for live countdowns & timeline indicator
@@ -491,13 +494,31 @@ function updateTimelineScale(nowMs = Date.now()) {
   });
 }
 
+function updateBossTypeToggleUI() {
+  const btnCd = document.getElementById('btnToggleCooldown');
+  const btnFixed = document.getElementById('btnToggleFixed');
+  if (btnCd) btnCd.classList.toggle('active', showCooldownBosses);
+  if (btnFixed) btnFixed.classList.toggle('active', showFixedBosses);
+}
+
 function getActiveBosses() {
   const allBosses = Object.values(bossStates);
+  let activeList = allBosses;
+
   if (Array.isArray(bossRules) && bossRules.length > 0) {
     const validNames = new Set(bossRules.map(r => r.name));
-    return allBosses.filter(b => validNames.has(b.name));
+    activeList = activeList.filter(b => validNames.has(b.name));
   }
-  return allBosses;
+
+  return activeList.filter(b => {
+    const bossRule = bossRules.find(r => r.name === b.name);
+    const isFixed = (bossRule && bossRule.type === 'fixed') || (b.type === 'fixed');
+    if (isFixed) {
+      return showFixedBosses;
+    } else {
+      return showCooldownBosses;
+    }
+  });
 }
 
 function updateTimeline() {
@@ -871,9 +892,16 @@ function updateCardCountdowns(nowMs) {
       const diffSec = Math.floor((eff.spawnMs - nowMs) / 1000);
 
       if (diffSec > 0) {
-        const m = Math.floor(diffSec / 60);
-        const s = diffSec % 60;
-        timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        if (diffSec >= 3600) {
+          const h = Math.floor(diffSec / 3600);
+          const m = Math.floor((diffSec % 3600) / 60);
+          const s = diffSec % 60;
+          timerEl.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        } else {
+          const m = Math.floor(diffSec / 60);
+          const s = diffSec % 60;
+          timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
 
         if (diffSec <= 300) {
           card.classList.add('warning-card');
@@ -1146,6 +1174,25 @@ function setupUIEventListeners() {
         if (timelineSec) timelineSec.classList.remove('active');
       }
     });
+  });
+
+  // Boss Type Filter Toggles (週期王 / 定時王)
+  document.getElementById('btnToggleCooldown')?.addEventListener('click', () => {
+    showCooldownBosses = !showCooldownBosses;
+    localStorage.setItem('lw_show_cooldown', showCooldownBosses);
+    updateBossTypeToggleUI();
+    updateTimeline();
+    renderSequenceQueue();
+    renderBossGrid();
+  });
+
+  document.getElementById('btnToggleFixed')?.addEventListener('click', () => {
+    showFixedBosses = !showFixedBosses;
+    localStorage.setItem('lw_show_fixed', showFixedBosses);
+    updateBossTypeToggleUI();
+    updateTimeline();
+    renderSequenceQueue();
+    renderBossGrid();
   });
 
   // Timeline Span Toggle Buttons (1h vs 3h)
