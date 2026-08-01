@@ -491,6 +491,15 @@ function updateTimelineScale(nowMs = Date.now()) {
   });
 }
 
+function getActiveBosses() {
+  const allBosses = Object.values(bossStates);
+  if (Array.isArray(bossRules) && bossRules.length > 0) {
+    const validNames = new Set(bossRules.map(r => r.name));
+    return allBosses.filter(b => validNames.has(b.name));
+  }
+  return allBosses;
+}
+
 function updateTimeline() {
   const layer = document.getElementById('timelineMarkersLayer');
   const nowInd = document.getElementById('nowIndicator');
@@ -525,8 +534,8 @@ function updateTimeline() {
 
   const markerItems = [];
 
-  // Evaluate EVERY boss for past death events AND future spawn cycles in the 3.5h window!
-  Object.values(bossStates).forEach(boss => {
+  // Evaluate EVERY active boss for past death events AND future spawn cycles in the 3.5h window!
+  getActiveBosses().forEach(boss => {
     const cooldownMins = getBossCooldownMins(boss.name);
     const cooldownMs = cooldownMins * 60 * 1000;
 
@@ -640,7 +649,7 @@ function renderSequenceQueue() {
   const nowMs = Date.now();
   const upcomingBosses = [];
 
-  Object.values(bossStates).forEach(boss => {
+  getActiveBosses().forEach(boss => {
     const eff = getEffectiveBossState(boss, nowMs);
     if (!eff.spawnMs) return;
 
@@ -709,7 +718,7 @@ function highlightBossCard(bossName) {
    ========================================================================== */
 
 function checkAdvanceWarnings(nowMs) {
-  Object.values(bossStates).forEach(boss => {
+  getActiveBosses().forEach(boss => {
     const eff = getEffectiveBossState(boss, nowMs);
     if (!eff.spawnMs) return;
 
@@ -888,7 +897,7 @@ function renderBossGrid() {
   const countBadge = document.getElementById('bossCountBadge');
   if (!grid) return;
 
-  const bosses = Object.values(bossStates);
+  const bosses = getActiveBosses();
   if (countBadge) countBadge.textContent = `${bosses.length} 個`;
 
   if (bosses.length === 0) {

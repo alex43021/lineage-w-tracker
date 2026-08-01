@@ -1568,7 +1568,7 @@ class MainWindow(QWidget):
             QMessageBox.warning(self, "警告", "請先選擇清單中要刪除的 BOSS！")
             return
             
-        name = curr_item.text()
+        name = curr_item.data(Qt.UserRole) or curr_item.text().split(" ")[0]
         rules = self.settings.get("boss_rules", [])
         self.settings["boss_rules"] = [r for r in rules if r["name"] != name]
         
@@ -1580,6 +1580,11 @@ class MainWindow(QWidget):
             self.rule_cooldown_spin.setValue(120)
             
         self.populate_rules_list()
+        
+        # Purge deleted boss state from Firebase immediately if configured
+        if self.worker and self.worker.firebase.is_configured():
+            self.worker.firebase.delete_boss_state(name)
+
         QMessageBox.information(self, "提示", f"已在清單中移除 BOSS {name}。請點擊『儲存所有 BOSS 設定』以儲存並套用！")
 
     def save_boss_rules_to_settings(self):
@@ -1589,17 +1594,24 @@ class MainWindow(QWidget):
         # Sync PWA firebase config
         self.write_pwa_firebase_config()
         
+        rules = self.settings.get("boss_rules", [])
+        
         # Hot-reload inside active worker
         if self.worker and self.worker.isRunning():
-            self.worker.boss_tracker.set_rules(self.settings.get("boss_rules", []))
+            self.worker.boss_tracker.set_rules(rules)
             # Sync states and rules to Firebase (in case rules added new ones)
             if self.worker.firebase.is_configured():
                 self.worker.firebase.update_boss_states(self.worker.boss_tracker.states)
-                self.worker.firebase.update_boss_rules(self.settings.get("boss_rules", []))
+                self.worker.firebase.update_boss_rules(rules)
+                self.worker.firebase.purge_stale_boss_states(rules)
             self.update_boss_ui(self.worker.boss_tracker.states)
         else:
-            current_tracker = BossTracker(self.settings.get("boss_rules", []))
+            current_tracker = BossTracker(rules)
             self.update_boss_ui(current_tracker.states)
+            fb = FirebaseClient(self.settings.get("firebase_url", ""), self.settings.get("firebase_passcode", ""))
+            if fb.is_configured():
+                fb.update_boss_rules(rules)
+                fb.purge_stale_boss_states(rules)
             
         self.log_message("所有 BOSS 設定已成功儲存並同步！")
         QMessageBox.information(self, "提示", "BOSS 規則設定已儲存，並已即時同步套用！")

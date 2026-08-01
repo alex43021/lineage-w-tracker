@@ -191,3 +191,42 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Firebase clear_all_reports failed: {e}")
             return False
+
+    def delete_boss_state(self, boss_name):
+        """Delete a specific boss state from Firebase Realtime Database."""
+        if not boss_name:
+            return False
+        import urllib.parse
+        encoded_key = urllib.parse.quote(str(boss_name).strip())
+        url = self._get_url(f"boss_states/{encoded_key}")
+        if not url:
+            return False
+        try:
+            response = self.session.delete(url, timeout=5)
+            logger.info(f"Deleted Firebase boss state for '{boss_name}': HTTP {response.status_code}")
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Firebase delete_boss_state failed for '{boss_name}': {e}")
+            return False
+
+    def purge_stale_boss_states(self, active_rules):
+        """Purge any boss state in Firebase that is not present in active_rules."""
+        if not self.is_configured() or not active_rules:
+            return
+        active_names = set(r["name"] for r in active_rules if "name" in r)
+        url = self._get_url("boss_states")
+        if not url:
+            return
+        try:
+            res = self.session.get(url, timeout=5)
+            if res.status_code == 200 and res.json():
+                states = res.json()
+                import urllib.parse
+                for k, v in states.items():
+                    decoded_k = urllib.parse.unquote(k)
+                    boss_name = (v.get("name") if isinstance(v, dict) else None) or decoded_k
+                    if boss_name and boss_name not in active_names:
+                        logger.info(f"Purging stale boss state '{boss_name}' from Firebase")
+                        self.delete_boss_state(k)
+        except Exception as e:
+            logger.error(f"Failed to purge stale boss states: {e}")
