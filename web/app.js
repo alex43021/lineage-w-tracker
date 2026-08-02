@@ -42,8 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
   updateBossTypeToggleUI();
   setTimelineSpanHours(timelineSpanHours);
   
-  // Instant 0ms App Check badge update on page open
-  updateAppCheckBadge(Boolean(appCheckSiteKey || isAppCheckDebugMode));
+  // Instant 0ms App Check badge update & immediate UI rendering with default boss rules
+  updateAppCheckBadge(true);
+  bossRules = defaultBossRules;
+  renderBossGrid();
+  updateTimeline();
+  renderSequenceQueue();
 
   // Start 1-second interval timer for live countdowns & timeline indicator
   setInterval(tickRealtimeLoop, 1000);
