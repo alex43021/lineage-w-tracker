@@ -18,3 +18,8 @@ output.txt
 .vscode/
 .idea/
 *.swp
+
+# Sensitive Local Config Files & Credentials
+config/settings.json
+*.pem
+*.key
