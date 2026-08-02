@@ -5,20 +5,33 @@ import json
 logger = logging.getLogger(__name__)
 
 class FirebaseClient:
-    def __init__(self, db_url=None, passcode=None):
+    def __init__(self, db_url=None, passcode=None, app_check_token=None):
         """
         db_url: Firebase Realtime Database URL, e.g. "https://my-project-default-rtdb.firebaseio.com"
         passcode: The guild password, used as a secure namespace path.
+        app_check_token: Optional Firebase App Check token for abuse protection.
         """
         self._db_url = None
         self.db_url = db_url
         self.passcode = passcode if passcode else "default"
+        self.app_check_token = app_check_token
         
         # Persistent HTTP session for connection pooling and keep-alive
         self.session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=2)
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
+
+        if self.app_check_token:
+            self.session.headers.update({"X-Firebase-AppCheck": str(self.app_check_token).strip()})
+
+    def set_app_check_token(self, token):
+        """Dynamically update App Check token for HTTP requests."""
+        self.app_check_token = token
+        if token and str(token).strip():
+            self.session.headers.update({"X-Firebase-AppCheck": str(token).strip()})
+        else:
+            self.session.headers.pop("X-Firebase-AppCheck", None)
 
     @property
     def db_url(self):

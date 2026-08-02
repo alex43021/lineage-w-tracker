@@ -1242,6 +1242,8 @@ class MainWindow(QWidget):
         self.fb_pass_edit = QLineEdit(self.settings.get("firebase_passcode", "7777"))
         self.fb_pass_edit.setEchoMode(QLineEdit.PasswordEchoOnEdit)
         self.fb_pass_edit.setPlaceholderText("血盟暗號 / 密碼")
+        self.fb_appcheck_edit = QLineEdit(self.settings.get("firebase_appcheck_token", ""))
+        self.fb_appcheck_edit.setPlaceholderText("Firebase App Check Token / reCAPTCHA v3 Site Key (選用)")
         
         test_fb_btn = QPushButton("⚡  測試 Firebase 連線")
         test_fb_btn.setObjectName("btnGhost")
@@ -1251,6 +1253,8 @@ class MainWindow(QWidget):
         fb_vbox.addWidget(self.fb_url_edit)
         fb_vbox.addWidget(QLabel("血盟暗號 (Passcode):"))
         fb_vbox.addWidget(self.fb_pass_edit)
+        fb_vbox.addWidget(QLabel("App Check Token / Site Key (選用):"))
+        fb_vbox.addWidget(self.fb_appcheck_edit)
         fb_vbox.addWidget(test_fb_btn)
         config_layout.addWidget(fb_group)
 
@@ -1661,6 +1665,7 @@ class MainWindow(QWidget):
     def save_config_from_ui(self):
         self.settings["firebase_url"] = self.fb_url_edit.text().strip()
         self.settings["firebase_passcode"] = self.fb_pass_edit.text().strip()
+        self.settings["firebase_appcheck_token"] = self.fb_appcheck_edit.text().strip()
         self.settings["only_boss_messages"] = self.only_boss_messages_chk.isChecked()
         self.settings["use_yellow_filter"] = self.use_yellow_filter_chk.isChecked()
         self.settings["use_binarization"] = self.use_binarization_chk.isChecked()
@@ -1687,7 +1692,8 @@ class MainWindow(QWidget):
         payload = {
           "databaseURL": self.settings.get("firebase_url", ""),
           "passcode": self.settings.get("firebase_passcode", ""),
-          "vapidPublicKey": self.settings.get("vapid_public_key", "")
+          "vapidPublicKey": self.settings.get("vapid_public_key", ""),
+          "appCheckSiteKey": self.settings.get("firebase_appcheck_token", "")
         }
         try:
             with open(config_path, 'w', encoding='utf-8') as f:

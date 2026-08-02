@@ -19,6 +19,8 @@ let deferredPrompt = null;
 let timelineSpanHours = parseInt(localStorage.getItem('lw_timeline_span') || "3", 10);
 let showCooldownBosses = localStorage.getItem('lw_show_cooldown') !== 'false';
 let showFixedBosses = localStorage.getItem('lw_show_fixed') !== 'false';
+let appCheckSiteKey = localStorage.getItem('lw_appcheck_site_key') || "";
+let isAppCheckDebugMode = localStorage.getItem('lw_appcheck_debug') === 'true';
 
 // Intercept browser PWA install prompt
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -55,6 +57,9 @@ async function loadConfigAndConnect() {
       const config = await response.json();
       currentDbUrl = (config.databaseURL || currentDbUrl).replace(/\/$/, "");
       currentPasscode = config.passcode || currentPasscode;
+      if (config.appCheckSiteKey && !appCheckSiteKey) {
+        appCheckSiteKey = config.appCheckSiteKey;
+      }
     }
   } catch (e) {
     console.log("data/firebase_config.json not found, using defaults or localStorage.");
@@ -234,6 +239,9 @@ function initFirebase(url, passcode) {
     firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl }, "LW-Tracker-" + Date.now());
     db = firebaseApp.database();
 
+    // Activate Firebase App Check (reCAPTCHA v3 / Debug Provider)
+    initAppCheck();
+
     // 2. Start realtime sync listeners immediately
     startSyncListeners();
 
@@ -247,6 +255,54 @@ function initFirebase(url, passcode) {
     });
   } catch (e) {
     console.error("Firebase init failed:", e);
+  }
+}
+
+function initAppCheck() {
+  if (!firebaseApp || typeof firebase.appCheck !== 'function') return;
+
+  try {
+    if (isAppCheckDebugMode) {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+      console.log("Firebase App Check Debug Token enabled.");
+    }
+
+    const appCheck = firebase.appCheck(firebaseApp);
+    if (appCheckSiteKey) {
+      appCheck.activate(
+        new firebase.appCheck.ReCaptchaV3Provider(appCheckSiteKey),
+        true
+      );
+      console.log("Firebase App Check reCAPTCHA v3 activated.");
+      updateAppCheckBadge(true);
+    } else if (isAppCheckDebugMode) {
+      appCheck.activate(
+        new firebase.appCheck.CustomProvider({
+          getToken: () => Promise.resolve({ token: "DEBUG_TOKEN", expireTimeMillis: Date.now() + 3600000 })
+        }),
+        true
+      );
+      console.log("Firebase App Check Debug Provider activated.");
+      updateAppCheckBadge(true, "Debug");
+    } else {
+      updateAppCheckBadge(false);
+    }
+  } catch (e) {
+    console.warn("Firebase App Check activation note:", e.message);
+  }
+}
+
+function updateAppCheckBadge(enabled, label = "") {
+  const btn = document.getElementById('appCheckBtn');
+  const text = document.getElementById('appCheckStatusText');
+  if (!btn || !text) return;
+
+  if (enabled) {
+    btn.classList.add('active');
+    text.textContent = label ? `🛡️ ${label}` : '防護:開';
+  } else {
+    btn.classList.remove('active');
+    text.textContent = 'App Check';
   }
 }
 
@@ -1272,6 +1328,32 @@ function setupUIEventListeners() {
 
   document.getElementById('closePwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
   document.getElementById('confirmPwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
+
+  // Firebase App Check Modal Handlers
+  document.getElementById('appCheckBtn')?.addEventListener('click', () => {
+    const input = document.getElementById('appCheckSiteKeyInput');
+    const chk = document.getElementById('appCheckDebugChk');
+    if (input) input.value = appCheckSiteKey;
+    if (chk) chk.checked = isAppCheckDebugMode;
+    showModal('appCheckModal');
+  });
+
+  document.getElementById('closeAppCheckBtn')?.addEventListener('click', () => hideModal('appCheckModal'));
+  document.getElementById('cancelAppCheckBtn')?.addEventListener('click', () => hideModal('appCheckModal'));
+
+  document.getElementById('saveAppCheckBtn')?.addEventListener('click', () => {
+    const input = document.getElementById('appCheckSiteKeyInput');
+    const chk = document.getElementById('appCheckDebugChk');
+    
+    appCheckSiteKey = input ? input.value.trim() : "";
+    isAppCheckDebugMode = chk ? chk.checked : false;
+
+    localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+    localStorage.setItem('lw_appcheck_debug', isAppCheckDebugMode);
+
+    hideModal('appCheckModal');
+    initFirebase(currentDbUrl, currentPasscode);
+  });
 
   document.querySelectorAll('input[name="timeType"]').forEach(radio => {
     radio.addEventListener('change', (e) => {

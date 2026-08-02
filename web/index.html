@@ -6,9 +6,10 @@
   <title>天堂W BOSS 監控與動態時間軸</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
-  <!-- Firebase App & Realtime Database SDKs (Compat v9 CDN) -->
+  <!-- Firebase App, Realtime Database & App Check SDKs (Compat v9 CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-check-compat.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -27,6 +28,12 @@
         <button id="pwaInstallBtn" class="toggle-pill-btn btn-pwa-install" title="加到手機桌面">
           <span class="pill-icon">📱</span>
           <span class="pill-text">加到桌面</span>
+        </button>
+
+        <!-- Firebase App Check Security Modal Trigger -->
+        <button id="appCheckBtn" class="toggle-pill-btn" title="Firebase App Check 防護設定">
+          <span class="pill-icon">🛡️</span>
+          <span class="pill-text" id="appCheckStatusText">App Check</span>
         </button>
 
         <!-- Notification Toggle & Test Button (Default OFF) -->
@@ -186,6 +193,33 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-primary btn-full" id="confirmPwaBtn">我知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firebase App Check Security Modal -->
+    <div id="appCheckModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>🛡️ Firebase App Check 資安防護設定</h3>
+          <span class="close-btn" id="closeAppCheckBtn">&times;</span>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.8rem;">
+          <p style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;">
+            Firebase App Check 能驗證請求來源，防止未授權客戶端或機器人腳本濫用雲端 Realtime Database。
+          </p>
+          <div class="form-group">
+            <label style="font-size: 0.85rem; color: #94a3b8;">reCAPTCHA v3 Site Key (金鑰)：</label>
+            <input type="text" id="appCheckSiteKeyInput" class="form-control" placeholder="6Lxxxx..." style="width: 100%; box-sizing: border-box; margin-top: 0.3rem;">
+          </div>
+          <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="appCheckDebugChk">
+            <label for="appCheckDebugChk" style="font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">啟用 Debug 測試模式 (測試 Token)</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelAppCheckBtn">取消</button>
+          <button type="button" class="btn btn-primary" id="saveAppCheckBtn">儲存並啟用防護</button>
         </div>
       </div>
     </div>
