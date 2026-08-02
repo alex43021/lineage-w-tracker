@@ -688,8 +688,10 @@ function updateTimelineScale(nowMs = Date.now()) {
 function updateBossTypeToggleUI() {
   const btnCd = document.getElementById('btnToggleCooldown');
   const btnFixed = document.getElementById('btnToggleFixed');
-  if (btnCd) btnCd.classList.toggle('active', showCooldownBosses);
-  if (btnFixed) btnFixed.classList.toggle('active', showFixedBosses);
+  const isCd = (typeof showCooldownBosses !== 'undefined') ? showCooldownBosses : true;
+  const isFixed = (typeof showFixedBosses !== 'undefined') ? showFixedBosses : true;
+  if (btnCd) btnCd.classList.toggle('active', isCd);
+  if (btnFixed) btnFixed.classList.toggle('active', isFixed);
 }
 
 function getActiveBosses() {
@@ -723,9 +725,9 @@ function getActiveBosses() {
     const bossRule = bossRules.find(r => r.name === b.name);
     const isFixed = (bossRule && bossRule.type === 'fixed') || (b.type === 'fixed');
     if (isFixed) {
-      return showFixedBosses;
+      return (typeof showFixedBosses !== 'undefined') ? showFixedBosses : true;
     } else {
-      return showCooldownBosses;
+      return (typeof showCooldownBosses !== 'undefined') ? showCooldownBosses : true;
     }
   });
 }
