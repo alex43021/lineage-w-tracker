@@ -172,8 +172,8 @@ async function fetchDirectRestData(url, passcode) {
       const appCheckRes = await fetch(appCheckUrl);
       if (appCheckRes.ok) {
         const appCheckData = await appCheckRes.json();
-        if (appCheckData && appCheckData.siteKey && appCheckData.siteKey !== appCheckSiteKey) {
-          appCheckSiteKey = appCheckData.siteKey;
+        if (appCheckData && appCheckData.siteKey) {
+          appCheckSiteKey = appCheckData.siteKey.trim();
           localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
           initAppCheck();
         }
@@ -348,6 +348,17 @@ function startSyncListeners() {
       renderBossGrid();
       updateTimeline();
       renderSequenceQueue();
+    }
+  });
+
+  // 3. Realtime Sync App Check Config
+  db.ref(`lineage_w_tracker/${currentPasscode}/app_check_config`).on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && data.siteKey && data.siteKey !== appCheckSiteKey) {
+      console.log("Realtime App Check config updated from Firebase:", data.siteKey);
+      appCheckSiteKey = data.siteKey.trim();
+      localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+      initAppCheck();
     }
   });
 }
