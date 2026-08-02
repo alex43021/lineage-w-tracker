@@ -324,14 +324,31 @@ function initAppCheck() {
 function updateAppCheckBadge(enabled, label = "") {
   const btn = document.getElementById('appCheckBtn');
   const text = document.getElementById('appCheckStatusText');
-  if (!btn || !text) return;
+  const bannerText = document.getElementById('appCheckBannerText');
+  const banner = document.getElementById('appCheckStatusBanner');
 
-  if (enabled) {
-    btn.classList.add('active');
-    text.textContent = label ? `🛡️ ${label}` : '防護:開';
-  } else {
-    btn.classList.remove('active');
-    text.textContent = 'App Check';
+  if (btn && text) {
+    if (enabled) {
+      btn.classList.add('active');
+      text.textContent = label ? `🛡️ ${label}` : '防護:開';
+    } else {
+      btn.classList.remove('active');
+      text.textContent = 'App Check';
+    }
+  }
+
+  if (bannerText && banner) {
+    if (enabled) {
+      banner.style.background = 'rgba(16, 185, 129, 0.15)';
+      banner.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      bannerText.style.color = '#6ee7b7';
+      bannerText.textContent = label ? `防護狀態：已啟用 (${label} 測試模式)` : '防護狀態：🟢 已從雲端/桌面端自動同步金鑰並啟用防護！';
+    } else {
+      banner.style.background = 'rgba(239, 68, 68, 0.15)';
+      banner.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      bannerText.style.color = '#fca5a5';
+      bannerText.textContent = '防護狀態：🔴 未啟用 (請輸入 Key 或在桌面端點擊儲存同步)';
+    }
   }
 }
 

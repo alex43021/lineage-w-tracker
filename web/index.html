@@ -205,7 +205,11 @@
           <span class="close-btn" id="closeAppCheckBtn">&times;</span>
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.8rem;">
-          <p style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;">
+          <div id="appCheckStatusBanner" style="padding: 0.5rem 0.8rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.1rem;">🟢</span>
+            <span id="appCheckBannerText" style="font-size: 0.82rem; color: #6ee7b7; font-weight: 600;">防護狀態：未啟用 (請輸入 Key 或由桌面端同步)</span>
+          </div>
+          <p style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.4; margin: 0;">
             Firebase App Check 能驗證請求來源，防止未授權客戶端或機器人腳本濫用雲端 Realtime Database。
           </p>
           <div class="form-group">
