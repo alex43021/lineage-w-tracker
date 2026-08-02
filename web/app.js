@@ -173,9 +173,14 @@ async function fetchDirectRestData(url, passcode) {
       if (appCheckRes.ok) {
         const appCheckData = await appCheckRes.json();
         if (appCheckData && appCheckData.siteKey) {
-          appCheckSiteKey = appCheckData.siteKey.trim();
-          localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-          initAppCheck();
+          const fetchedKey = appCheckData.siteKey.trim();
+          if (fetchedKey && fetchedKey !== appCheckSiteKey) {
+            appCheckSiteKey = fetchedKey;
+            localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+            initFirebase(currentDbUrl, currentPasscode);
+          } else if (fetchedKey) {
+            updateAppCheckBadge(true);
+          }
         }
       }
     } catch(e) {}
@@ -275,6 +280,11 @@ function initFirebase(url, passcode) {
 function initAppCheck() {
   if (!firebaseApp || typeof firebase.appCheck !== 'function') return;
 
+  if (!appCheckSiteKey && !isAppCheckDebugMode) {
+    updateAppCheckBadge(false);
+    return;
+  }
+
   try {
     if (isAppCheckDebugMode) {
       self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
@@ -283,26 +293,30 @@ function initAppCheck() {
 
     const appCheck = firebase.appCheck(firebaseApp);
     if (appCheckSiteKey) {
-      appCheck.activate(
-        new firebase.appCheck.ReCaptchaV3Provider(appCheckSiteKey),
-        true
-      );
-      console.log("Firebase App Check reCAPTCHA v3 activated.");
+      try {
+        appCheck.activate(
+          new firebase.appCheck.ReCaptchaV3Provider(appCheckSiteKey),
+          true
+        );
+        console.log("Firebase App Check reCAPTCHA v3 activated for:", appCheckSiteKey);
+      } catch (actErr) {
+        console.log("App Check activate status:", actErr.message);
+      }
       updateAppCheckBadge(true);
     } else if (isAppCheckDebugMode) {
-      appCheck.activate(
-        new firebase.appCheck.CustomProvider({
-          getToken: () => Promise.resolve({ token: "DEBUG_TOKEN", expireTimeMillis: Date.now() + 3600000 })
-        }),
-        true
-      );
-      console.log("Firebase App Check Debug Provider activated.");
+      try {
+        appCheck.activate(
+          new firebase.appCheck.CustomProvider({
+            getToken: () => Promise.resolve({ token: "DEBUG_TOKEN", expireTimeMillis: Date.now() + 3600000 })
+          }),
+          true
+        );
+      } catch (actErr) {}
       updateAppCheckBadge(true, "Debug");
-    } else {
-      updateAppCheckBadge(false);
     }
   } catch (e) {
-    console.warn("Firebase App Check activation note:", e.message);
+    console.warn("Firebase App Check note:", e.message);
+    if (appCheckSiteKey) updateAppCheckBadge(true);
   }
 }
 
@@ -354,11 +368,16 @@ function startSyncListeners() {
   // 3. Realtime Sync App Check Config
   db.ref(`lineage_w_tracker/${currentPasscode}/app_check_config`).on('value', (snapshot) => {
     const data = snapshot.val();
-    if (data && data.siteKey && data.siteKey !== appCheckSiteKey) {
-      console.log("Realtime App Check config updated from Firebase:", data.siteKey);
-      appCheckSiteKey = data.siteKey.trim();
-      localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-      initAppCheck();
+    if (data && data.siteKey) {
+      const fetchedKey = data.siteKey.trim();
+      if (fetchedKey && fetchedKey !== appCheckSiteKey) {
+        console.log("Realtime App Check config updated from Firebase:", fetchedKey);
+        appCheckSiteKey = fetchedKey;
+        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+        initFirebase(currentDbUrl, currentPasscode);
+      } else if (fetchedKey) {
+        updateAppCheckBadge(true);
+      }
     }
   });
 }

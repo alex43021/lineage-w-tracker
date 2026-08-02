@@ -4,7 +4,7 @@
   "crop_y": 550,
   "crop_w": 177,
   "crop_h": 30,
-  "ocr_threshold": 141,
+  "ocr_threshold": 150,
   "ocr_interval_s": 2.0,
   "dedup_threshold": 0.75,
   "ocr_lang": "zh-Hant",
