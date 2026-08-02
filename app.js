@@ -1687,6 +1687,7 @@ function updateTimeline() {
       while (spawnMs <= windowEndMs) {
         if (spawnMs >= windowStartMs) {
           const pct = ((spawnMs - windowStartMs) / totalWindowMs) * 100;
+          const diffSec = Math.floor((spawnMs - nowMs) / 1000);
           const isFixed = eff.isFixed;
           markerItems.push({
             boss,
@@ -2358,32 +2359,14 @@ function setupUIEventListeners() {
   document.getElementById('closePwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
   document.getElementById('confirmPwaBtn')?.addEventListener('click', () => hideModal('pwaModal'));
 
-  // Firebase App Check Modal Handlers
+  // Firebase App Check Modal Handlers (Read-only status view)
   document.getElementById('appCheckBtn')?.addEventListener('click', () => {
-    const input = document.getElementById('appCheckSiteKeyInput');
-    const chk = document.getElementById('appCheckDebugChk');
-    if (input) input.value = appCheckSiteKey;
-    if (chk) chk.checked = isAppCheckDebugMode;
-    updateAppCheckBadge(Boolean(appCheckSiteKey || isAppCheckDebugMode));
+    updateAppCheckBadge(Boolean(appCheckSiteKey));
     showModal('appCheckModal');
   });
 
   document.getElementById('closeAppCheckBtn')?.addEventListener('click', () => hideModal('appCheckModal'));
-  document.getElementById('cancelAppCheckBtn')?.addEventListener('click', () => hideModal('appCheckModal'));
-
-  document.getElementById('saveAppCheckBtn')?.addEventListener('click', () => {
-    const input = document.getElementById('appCheckSiteKeyInput');
-    const chk = document.getElementById('appCheckDebugChk');
-    
-    appCheckSiteKey = input ? input.value.trim() : "";
-    isAppCheckDebugMode = chk ? chk.checked : false;
-
-    localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-    localStorage.setItem('lw_appcheck_debug', isAppCheckDebugMode);
-
-    hideModal('appCheckModal');
-    initFirebase(currentDbUrl, currentPasscode);
-  });
+  document.getElementById('confirmAppCheckBtn')?.addEventListener('click', () => hideModal('appCheckModal'));
 
   document.querySelectorAll('input[name="timeType"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
