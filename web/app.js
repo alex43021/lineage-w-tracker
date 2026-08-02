@@ -322,27 +322,30 @@ function initAppCheck() {
       try {
         appCheck.activate(
           new firebase.appCheck.ReCaptchaV3Provider(appCheckSiteKey),
-          true
+          false // Set auto-refresh to false to prevent invalid domain errors from dropping WebSocket
         );
         console.log("Firebase App Check reCAPTCHA v3 activated for:", appCheckSiteKey);
+        updateAppCheckBadge(true);
       } catch (actErr) {
-        console.log("App Check activate status:", actErr.message);
+        console.warn("App Check activate note:", actErr.message);
+        updateAppCheckBadge(false);
       }
-      updateAppCheckBadge(true);
     } else if (isAppCheckDebugMode) {
       try {
         appCheck.activate(
           new firebase.appCheck.CustomProvider({
             getToken: () => Promise.resolve({ token: "DEBUG_TOKEN", expireTimeMillis: Date.now() + 3600000 })
           }),
-          true
+          false
         );
-      } catch (actErr) {}
-      updateAppCheckBadge(true, "Debug");
+        updateAppCheckBadge(true, "Debug");
+      } catch (actErr) {
+        updateAppCheckBadge(false);
+      }
     }
   } catch (e) {
     console.warn("Firebase App Check note:", e.message);
-    if (appCheckSiteKey) updateAppCheckBadge(true);
+    updateAppCheckBadge(false);
   }
 }
 
