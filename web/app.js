@@ -4,8 +4,876 @@ let firebaseApp = null;
 let currentPasscode = "123456789";
 let currentDbUrl = "https://wchat-6ea90-default-rtdb.asia-southeast1.firebasedatabase.app/";
 const defaultBossRules = [
-  { name: "克特", type: "fixed", days: [0, 1, 2, 3, 4, 5, 6], fixed_times: ["18:00"], spawn_keywords: ["克特", "出現"], death_keywords: ["克特", "擊敗"] },
-  { name: "巨大飛龍", type: "fixed", days: [3], fixed_times: ["19:00"], spawn_keywords: ["巨大飛龍", "出現"], death_keywords: ["巨大飛龍", "擊敗"] }
+  {
+    "cooldown_mins": 1440,
+    "days": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "death_keywords": [
+      "克特",
+      "擊敗"
+    ],
+    "fixed_times": [
+      "18:00"
+    ],
+    "name": "克特",
+    "spawn_keywords": [
+      "克特",
+      "出現"
+    ],
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 10080,
+    "days": [
+      3
+    ],
+    "death_keywords": [
+      "巨大飛龍",
+      "擊敗"
+    ],
+    "fixed_times": [
+      "19:00"
+    ],
+    "name": "巨大飛龍",
+    "spawn_keywords": [
+      "巨大飛龍",
+      "出現"
+    ],
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "屠殺者莫利提亞被淨化而消失了。"
+    ],
+    "name": "屠殺者莫利提亞",
+    "spawn_keywords": [
+      "屠殺者莫利提亞開始尋找目標。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "殺戮者在死亡廢墟遭到討伐了"
+    ],
+    "name": "殺戮者",
+    "spawn_keywords": [
+      "殺戮者在死亡廢墟徘徊"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "龍牙兵的鬥士失去力量，然後消失了。"
+    ],
+    "name": "奧杜亞",
+    "spawn_keywords": [
+      "龍牙兵的鬥士在古魯丁地監徘徊。"
+    ]
+  },
+  {
+    "cooldown_mins": 480,
+    "death_keywords": [
+      "審判者拉馬修陷入了長久的睡眠。"
+    ],
+    "name": "審判者拉馬修",
+    "spawn_keywords": [
+      "解除了審判者拉馬修的長久封印。"
+    ]
+  },
+  {
+    "cooldown_mins": 480,
+    "death_keywords": [
+      "阿吐巴的大咒術師逃走了。"
+    ],
+    "name": "奈克偌斯",
+    "spawn_keywords": [
+      "阿吐巴的大咒術師出面狩獵奴隸了。"
+    ]
+  },
+  {
+    "cooldown_mins": 480,
+    "death_keywords": [
+      "那魯加的冠軍撤退了。"
+    ],
+    "name": "烏勒庫斯",
+    "spawn_keywords": [
+      "那魯加的冠軍出現在戰場上。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "卡司特的頭目逃到地洞裡去了。"
+    ],
+    "name": "卡司特王",
+    "spawn_keywords": [
+      "飢餓的頭目在卡司特群落出現了。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "波若斯的斥後隊長潰逃了。"
+    ],
+    "name": "尼羅德",
+    "spawn_keywords": [
+      "波若斯的斥侯隊長在要塞周圍徘徊。"
+    ]
+  },
+  {
+    "cooldown_mins": 480,
+    "death_keywords": [
+      "紅月失去力量消失了。"
+    ],
+    "name": "庫爾託",
+    "spawn_keywords": [
+      "悲哀森林上方升起了紅月。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "古老海賊王的憤怒漸漸消失了。"
+    ],
+    "name": "乾渴的德雷克",
+    "spawn_keywords": [
+      "古老海賊王的憤怒正對覬覦寶物的人們開始蠢蠢欲動。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "黑虎恰姆帕瓦特失去力量而死亡了。"
+    ],
+    "name": "黑虎恰姆帕瓦特",
+    "spawn_keywords": [
+      "響徹恰姆帕瓦特的咆哮聲。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "巨大怪獸相約下一次而回去了"
+    ],
+    "name": "史前巨鱷",
+    "spawn_keywords": [
+      "傳來巨大怪獸的咆哮聲"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "亡靈的追蹤者，在亞丁城堡地下監獄失去了蹤影。"
+    ],
+    "name": "黑蛇騎士團長麥肯",
+    "spawn_keywords": [
+      "亡靈的追蹤者，正在亞丁城堡地下監獄徘徊。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "巴爾博薩夫人相約下一次而消失了。"
+    ],
+    "name": "巴爾博薩夫人",
+    "spawn_keywords": [
+      "巴爾博薩夫人開始準備豐盛的晚餐。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "蜥蜴王落敗了。"
+    ],
+    "name": "卡爾迪修",
+    "spawn_keywords": [
+      "蜥蜴王正在等待挑戰。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "death_keywords": [
+      "雪碧守衛往高雪壁隱藏了蹤跡。"
+    ],
+    "name": "大腳瑪幽",
+    "spawn_keywords": [
+      "雪碧守衛從深深的冬眠中甦醒了。"
+    ]
+  },
+  {
+    "cooldown_mins": 720,
+    "death_keywords": [
+      "巨大的兩個影子籠罩在巨人峽谷。"
+    ],
+    "name": "啃咬山峰的烏爾森",
+    "spawn_keywords": [
+      "巨大的兩個影子籠罩在巨人峽谷。"
+    ]
+  },
+  {
+    "cooldown_mins": 720,
+    "death_keywords": [
+      "巨大的兩個影子籠罩在巨人峽谷。"
+    ],
+    "name": "吞噬岩石的戈爾森",
+    "spawn_keywords": [
+      "巨大的兩個影子籠罩在巨人峽谷。"
+    ]
+  },
+  {
+    "cooldown_mins": 480,
+    "death_keywords": [
+      "埃柏特家族的飼養師頭目逃到了山寨。"
+    ],
+    "name": "頭目哈格瑪",
+    "spawn_keywords": [
+      "埃柏特家族的飼養師頭目出現於山寨。"
+    ]
+  },
+  {
+    "cooldown_mins": 240,
+    "name": "飛龍1"
+  },
+  {
+    "cooldown_mins": 240,
+    "name": "飛龍2"
+  },
+  {
+    "cooldown_mins": 240,
+    "name": "飛龍3"
+  },
+  {
+    "cooldown_mins": 240,
+    "name": "飛龍4"
+  },
+  {
+    "cooldown_mins": 480,
+    "death_keywords": [
+      "魔物招喚師的計畫失敗，然後返回異界了。"
+    ],
+    "name": "克洛林"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "fixed_times": [
+      "12:00",
+      "23:00"
+    ],
+    "name": "風精靈王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "12:00",
+      "23:00"
+    ],
+    "name": "地精靈王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "12:00",
+      "23:00"
+    ],
+    "name": "火精靈王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "12:00",
+      "23:00"
+    ],
+    "name": "水精靈王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "fixed_times": [
+      "15:00"
+    ],
+    "name": "巨蟻女皇",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:15"
+    ],
+    "name": "阿勒尼亞",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:10"
+    ],
+    "name": "克特",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:10"
+    ],
+    "name": "扭曲的傑尼斯女王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:10"
+    ],
+    "name": "不幸的幻象眼魔",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:15"
+    ],
+    "name": "恐怖的吸血鬼",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "19:10"
+    ],
+    "name": "巫師",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:15"
+    ],
+    "name": "死亡的殭屍王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:20"
+    ],
+    "name": "地獄的黑豹",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:20"
+    ],
+    "name": "不死的木乃伊王",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "19:10"
+    ],
+    "name": "阿爾斯卡利亞",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "19:15"
+    ],
+    "name": "殘酷的艾莉絲",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "19:15"
+    ],
+    "name": "黑暗的騎士范德",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "19:15"
+    ],
+    "name": "不滅的巫妖",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "黑色亡靈萊奧斯",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "fixed_times": [
+      "20:00"
+    ],
+    "name": "傲慢的烏格奴斯",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "鑽石高崙",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      2
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "船長卡利索",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      6
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "狂風的夏斯奇",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      3
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "疾風的巨大飛龍",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      2,
+      4,
+      6
+    ],
+    "fixed_times": [
+      "18:20"
+    ],
+    "name": "塔坤",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "18:20"
+    ],
+    "name": "自警團長馬托爾",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      3,
+      5,
+      0
+    ],
+    "fixed_times": [
+      "18:20"
+    ],
+    "name": "不死鳥",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      3
+    ],
+    "fixed_times": [
+      "15:00"
+    ],
+    "name": "死亡",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      2,
+      4
+    ],
+    "fixed_times": [
+      "15:00"
+    ],
+    "name": "古拉",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      5
+    ],
+    "fixed_times": [
+      "15:00"
+    ],
+    "name": "墮落",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      5
+    ],
+    "fixed_times": [
+      "15:00"
+    ],
+    "name": "惡魔",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "死亡騎士",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      0
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "漆黑的死亡騎士",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      4
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "巨大蜈蚣",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      5
+    ],
+    "fixed_times": [
+      "19:20"
+    ],
+    "name": "大黑長者",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2
+    ],
+    "fixed_times": [
+      "21:30"
+    ],
+    "name": "暗殺軍王史雷佛",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2
+    ],
+    "fixed_times": [
+      "21:30"
+    ],
+    "name": "冥法軍王海露拜",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2
+    ],
+    "fixed_times": [
+      "21:30"
+    ],
+    "name": "魔獸軍王巴蘭卡",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2
+    ],
+    "fixed_times": [
+      "21:30"
+    ],
+    "name": "法令軍王蕾雅",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2
+    ],
+    "fixed_times": [
+      "21:30"
+    ],
+    "name": "亡靈可利波斯",
+    "type": "fixed"
+  },
+  {
+    "cooldown_mins": 120,
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      0
+    ],
+    "fixed_times": [
+      "1:00",
+      "3:00",
+      "5:00",
+      "7:00",
+      "9:00",
+      "11:00",
+      "13:00",
+      "15:00",
+      "17:00",
+      "19:00",
+      "21:00",
+      "23:00"
+    ],
+    "name": "萊茵哈德",
+    "type": "fixed"
+  }
 ];
 
 let bossStates = {};
@@ -45,6 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 1. Render boss grid & timeline immediately with default rules for zero-delay usability
   bossRules = defaultBossRules;
+  initDefaultBossStates();
   renderBossGrid();
   updateTimeline();
   renderSequenceQueue();
@@ -683,6 +1552,28 @@ function updateTimelineScale(nowMs = Date.now()) {
     div.textContent = t.isNow ? `目前 ${timeStr}` : timeStr;
     scaleEl.appendChild(div);
   });
+}
+
+function initDefaultBossStates() {
+  if (Array.isArray(defaultBossRules)) {
+    defaultBossRules.forEach(rule => {
+      if (rule.name && !bossStates[rule.name]) {
+        bossStates[rule.name] = {
+          name: rule.name,
+          type: rule.type || 'cooldown',
+          status: 'unknown',
+          last_spawn_time: null,
+          last_death_time: null,
+          next_spawn_time: null,
+          cooldown_mins: rule.cooldown_mins || 240,
+          days: rule.days || [0,1,2,3,4,5,6],
+          fixed_times: rule.fixed_times || ["18:00"],
+          source: 'fixed_schedule',
+          reported_by: 'system'
+        };
+      }
+    });
+  }
 }
 
 function updateBossTypeToggleUI() {
