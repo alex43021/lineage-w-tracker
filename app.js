@@ -1385,8 +1385,8 @@ function getBossCooldownMins(bossName) {
     return parseInt(bossStates[bossName].cooldown_mins, 10);
   }
   // 3. Priority 3: Fallback lookup in default rules array
-  if (Array.isArray(DEFAULT_BOSS_RULES)) {
-    const defRule = DEFAULT_BOSS_RULES.find(r => r.name === bossName);
+  if (Array.isArray(defaultBossRules)) {
+    const defRule = defaultBossRules.find(r => r.name === bossName);
     if (defRule && defRule.cooldown_mins) {
       return parseInt(defRule.cooldown_mins, 10);
     }
