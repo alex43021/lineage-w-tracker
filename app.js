@@ -270,24 +270,31 @@ function initFirebase(url, passcode) {
 
     firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl }, "LW-Tracker-" + Date.now());
 
-    // 1. Create Realtime Database instance first for guaranteed core functionality
+    // 1. Activate App Check BEFORE database instance if siteKey exists (prevents Enforce Mode deadlock)
+    if (appCheckSiteKey || isAppCheckDebugMode) {
+      try {
+        initAppCheck();
+      } catch (appCheckErr) {
+        console.warn("App Check activation notice:", appCheckErr.message);
+      }
+    } else {
+      updateAppCheckBadge(false);
+    }
+
+    // 2. Create Realtime Database instance
     db = firebaseApp.database();
 
-    // 2. Start realtime sync listeners immediately
+    // 3. Start realtime sync listeners immediately
     startSyncListeners();
 
-    // 3. Monitor socket connection status and activate App Check ONLY after DB connection is verified 100% normal
+    // 4. Monitor socket connection status
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
         updateConnectionStatus('online');
         localStorage.setItem('lw_db_url', currentDbUrl);
         localStorage.setItem('lw_passcode', currentPasscode);
-
-        // Sequence: DB Verified Normal -> Check for SiteKey -> Activate App Check
-        try {
-          initAppCheck();
-        } catch(appCheckErr) {
-          console.warn("App Check activation notice:", appCheckErr.message);
+        if (appCheckSiteKey || isAppCheckDebugMode) {
+          updateAppCheckBadge(true);
         }
       }
     });
