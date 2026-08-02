@@ -2082,6 +2082,24 @@ function renderBossGrid() {
       typeBadgeHtml = `<span class="fixed-type-badge">📅 定時: ${dayText} ${timesText}</span>`;
     }
 
+    let actionsHtml = '';
+    if (eff.isFixed) {
+      actionsHtml = `
+        <button class="btn btn-quick-kill" onclick="quickReportKillNow('${boss.name}')" style="width: 100%;" title="紀錄擊殺時間 (固定王不影響下次預計重生時間)">
+          ⚔️ 紀錄擊殺
+        </button>
+      `;
+    } else {
+      actionsHtml = `
+        <button class="btn btn-quick-kill" onclick="quickReportKillNow('${boss.name}')" title="一鍵通報剛剛擊殺 (現在時間)">
+          ⚔️ 剛擊殺
+        </button>
+        <button class="btn btn-custom-time" onclick="openReportModal('${boss.name}')" title="指定歷史擊殺時間">
+          🕒 指定時間
+        </button>
+      `;
+    }
+
     card.innerHTML = `
       <div class="boss-info">
         <span class="boss-name">👹 ${eff.displayName} ${typeBadgeHtml}</span>
@@ -2095,12 +2113,7 @@ function renderBossGrid() {
         <div class="time-row"><span>上次死亡：</span><span>${lastDeathStr} (${boss.reported_by || '系統'})</span></div>
       </div>
       <div class="boss-card-actions">
-        <button class="btn btn-quick-kill" onclick="quickReportKillNow('${boss.name}')" title="一鍵通報剛剛擊殺 (現在時間)">
-          ⚔️ 剛擊殺
-        </button>
-        <button class="btn btn-custom-time" onclick="openReportModal('${boss.name}')" title="指定歷史擊殺時間">
-          🕒 指定時間
-        </button>
+        ${actionsHtml}
       </div>
     `;
     grid.appendChild(card);
@@ -2111,15 +2124,18 @@ function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = '成�
   if (!bossName || !deathDateObj) return;
 
   const bossRule = bossRules.find(r => r.name === bossName);
-  const isFixed = bossRule && bossRule.type === 'fixed';
+  const isFixed = (bossRule && bossRule.type === 'fixed') || (bossStates[bossName] && bossStates[bossName].type === 'fixed');
 
   const deathMs = deathDateObj.getTime();
   let nextSpawnMs = null;
 
   if (isFixed) {
-    nextSpawnMs = calculateNextFixedSpawnMs(bossRule, deathMs);
-  }
-  if (!nextSpawnMs) {
+    // For fixed schedule bosses: death is purely a historical record and does NOT alter or shift the fixed schedule spawn time!
+    nextSpawnMs = calculateNextFixedSpawnMs(bossRule, Date.now());
+    if (!nextSpawnMs && bossStates[bossName] && bossStates[bossName].next_spawn_time) {
+      nextSpawnMs = parseIsoToEpochMs(bossStates[bossName].next_spawn_time);
+    }
+  } else {
     const cooldownMins = getBossCooldownMins(bossName);
     nextSpawnMs = deathMs + (cooldownMins * 60 * 1000);
   }
@@ -2190,8 +2206,14 @@ function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = '成�
 function quickReportKillNow(bossName) {
   if (!bossName) return;
   const now = new Date();
+  const bossRule = bossRules.find(r => r.name === bossName);
+  const isFixed = (bossRule && bossRule.type === 'fixed') || (bossStates[bossName] && bossStates[bossName].type === 'fixed');
   applyAndBroadcastBossDeath(bossName, now, '成員');
-  alert(`🎉 已通報 ${bossName} 剛剛擊殺！預計重生時間已自動更新。`);
+  if (isFixed) {
+    alert(`🎉 已紀錄 ${bossName} 擊殺！(固定王計時維持預設排程不變)`);
+  } else {
+    alert(`🎉 已通報 ${bossName} 剛剛擊殺！預計重生時間已自動更新。`);
+  }
 }
 
 /* ==========================================================================
@@ -2227,6 +2249,11 @@ function populate24hTimeSelectors() {
 }
 
 function openReportModal(bossName) {
+  const bossRule = bossRules.find(r => r.name === bossName);
+  if (bossRule && bossRule.type === 'fixed') {
+    quickReportKillNow(bossName);
+    return;
+  }
   selectedBossForReport = bossName;
   document.getElementById('reportBossName').textContent = `指定擊殺時間：${bossName}`;
 

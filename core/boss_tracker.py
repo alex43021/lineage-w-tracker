@@ -316,12 +316,13 @@ class BossTracker:
         time_str = time_obj.isoformat()
 
         if state.get("type") == "fixed":
+            # Fixed schedule boss death only logs last_death_time; next_spawn_time is strictly locked to schedule relative to now
             next_spawn_str = self.calculate_next_fixed_spawn(
                 state.get("days", [0, 1, 2, 3, 4, 5, 6]),
                 state.get("fixed_times", ["18:00"]),
-                time_obj
+                datetime.now()
             )
-            next_spawn_time = datetime.fromisoformat(next_spawn_str) if next_spawn_str else time_obj
+            next_spawn_time = datetime.fromisoformat(next_spawn_str) if next_spawn_str else None
         else:
             cooldown_delta = timedelta(minutes=state["cooldown_mins"])
             next_spawn_time = time_obj + cooldown_delta
