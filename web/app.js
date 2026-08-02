@@ -1397,6 +1397,7 @@ function setupUIEventListeners() {
     const chk = document.getElementById('appCheckDebugChk');
     if (input) input.value = appCheckSiteKey;
     if (chk) chk.checked = isAppCheckDebugMode;
+    updateAppCheckBadge(Boolean(appCheckSiteKey || isAppCheckDebugMode));
     showModal('appCheckModal');
   });
 
