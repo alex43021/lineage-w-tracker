@@ -78,20 +78,7 @@ async function loadConfigAndConnect() {
   if (savedUrl) currentDbUrl = savedUrl.replace(/\/$/, "");
   if (savedCode) currentPasscode = savedCode;
 
-  // Pre-fetch remote app_check_config.json to ensure siteKey is ready BEFORE initializing Firebase
-  try {
-    const cleanUrl = currentDbUrl.replace(/\/$/, "");
-    const appCheckUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/app_check_config.json`;
-    const appCheckRes = await fetch(appCheckUrl);
-    if (appCheckRes.ok) {
-      const appCheckData = await appCheckRes.json();
-      if (appCheckData && appCheckData.siteKey && typeof appCheckData.siteKey === 'string' && appCheckData.siteKey.trim()) {
-        appCheckSiteKey = appCheckData.siteKey.trim();
-        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-      }
-    }
-  } catch (e) {}
-
+  // Immediately initialize Firebase database connection without blocking
   initFirebase(currentDbUrl, currentPasscode);
 }
 
