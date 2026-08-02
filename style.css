@@ -1052,3 +1052,60 @@ body {
     font-size: 2.1rem;
   }
 }
+
+/* Fixed Schedule Boss Visual Differentiation (定時王專用視覺區隔) */
+.boss-card.fixed-schedule-card {
+  background: linear-gradient(145deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.12);
+}
+
+.boss-card.fixed-schedule-card::before {
+  background: linear-gradient(180deg, #f59e0b, #d97706) !important;
+  width: 5px;
+}
+
+.boss-card.fixed-schedule-card .fixed-type-badge {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.35));
+  color: #fef08a;
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.btn-fixed-kill {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.35)) !important;
+  border: 1px solid rgba(245, 158, 11, 0.6) !important;
+  color: #fef08a !important;
+  font-weight: 700 !important;
+}
+
+.btn-fixed-kill:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.4), rgba(217, 119, 6, 0.5)) !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+}
+
+/* Timeline Fixed Boss Marker (定時王時間軸菱形金屬標記) */
+.timeline-marker.timeline-marker-fixed .marker-dot {
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 11px;
+  height: 11px;
+  background-color: #f59e0b;
+  border: 2px solid #fef08a;
+  box-shadow: 0 0 10px #f59e0b;
+  border-radius: 2px;
+}
+
+.timeline-marker.timeline-marker-fixed .marker-label {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.95), rgba(180, 83, 9, 0.95));
+  color: #fff;
+  font-weight: 700;
+  border: 1px solid rgba(254, 240, 138, 0.6);
+}
+
+.legend-fixed .diamond-dot {
+  color: #f59e0b;
+  font-size: 0.9rem;
+  margin-right: 3px;
+  display: inline-block;
+  transform: scale(1.1);
+}

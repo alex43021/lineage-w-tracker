@@ -1175,6 +1175,7 @@ function initFirebase(url, passcode) {
     // 4. Monitor socket connection status
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
+        updateAppCheckBadge(true);
         updateConnectionStatus('online');
         localStorage.setItem('lw_db_url', currentDbUrl);
         localStorage.setItem('lw_passcode', currentPasscode);
@@ -1686,14 +1687,15 @@ function updateTimeline() {
       while (spawnMs <= windowEndMs) {
         if (spawnMs >= windowStartMs) {
           const pct = ((spawnMs - windowStartMs) / totalWindowMs) * 100;
-          const diffSec = Math.floor((spawnMs - nowMs) / 1000);
+          const isFixed = eff.isFixed;
           markerItems.push({
             boss,
             targetTimeMs: spawnMs,
             pct,
             diffSec,
             eventType: 'spawn',
-            displayText: `${eff.displayName} ${formatLocalTime24(spawnMs)}`
+            isFixed,
+            displayText: `${isFixed ? '👑 ' : ''}${eff.displayName} ${formatLocalTime24(spawnMs)}`
           });
         }
         if (cooldownMs <= 0) break;
@@ -1732,7 +1734,7 @@ function updateTimeline() {
   // Render all unique markers
   uniqueMarkers.forEach(item => {
     const marker = document.createElement('div');
-    marker.className = `timeline-marker tier-${item.tier}`;
+    marker.className = `timeline-marker tier-${item.tier}${item.isFixed ? ' timeline-marker-fixed' : ''}`;
     marker.style.left = `${item.pct}%`;
 
     let statusClass = 'marker-future';
@@ -2062,7 +2064,8 @@ function renderBossGrid() {
     const eff = getEffectiveBossState(boss, nowMs);
     const card = document.createElement('div');
     const stateClass = `state-${boss.status || 'unknown'}`;
-    card.className = `boss-card ${stateClass}`;
+    const isFixedBoss = eff.isFixed;
+    card.className = `boss-card ${stateClass}${isFixedBoss ? ' fixed-schedule-card' : ''}`;
     card.dataset.bossName = boss.name;
 
     const lastDeathStr = boss.last_death_time ? formatLocalTime24(boss.last_death_time) : (eff.isOverdue && eff.spawnMs ? `${formatLocalTime24(eff.spawnMs - eff.cooldownMs)} (推算)` : '--:--');
@@ -2085,7 +2088,7 @@ function renderBossGrid() {
     let actionsHtml = '';
     if (eff.isFixed) {
       actionsHtml = `
-        <button class="btn btn-quick-kill" onclick="quickReportKillNow('${boss.name}')" style="width: 100%;" title="紀錄擊殺時間 (固定王不影響下次預計重生時間)">
+        <button class="btn btn-quick-kill btn-fixed-kill" onclick="quickReportKillNow('${boss.name}')" style="width: 100%;" title="紀錄擊殺時間 (固定王不影響下次預計重生時間)">
           ⚔️ 紀錄擊殺
         </button>
       `;
@@ -2102,7 +2105,7 @@ function renderBossGrid() {
 
     card.innerHTML = `
       <div class="boss-info">
-        <span class="boss-name">👹 ${eff.displayName} ${typeBadgeHtml}</span>
+        <span class="boss-name">${isFixedBoss ? '👑' : '👹'} ${eff.displayName} ${typeBadgeHtml}</span>
         <span class="boss-status-label">${statusText}</span>
       </div>
       <div class="boss-timer-container">

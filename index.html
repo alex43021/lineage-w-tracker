@@ -92,6 +92,7 @@
           <span class="legend-item legend-soon"><span class="dot"></span>30分內重生</span>
           <span class="legend-item legend-future"><span class="dot"></span>3小時內</span>
           <span class="legend-item legend-past"><span class="dot"></span>過去30分</span>
+          <span class="legend-item legend-fixed"><span class="diamond-dot">◆</span>定時王 (每日/週)</span>
         </div>
 
         <!-- Dynamic Touch-Scrollable Timeline Component -->
@@ -198,33 +199,27 @@
       </div>
     </div>
 
-    <!-- Firebase App Check Security Modal -->
+    <!-- Firebase App Check Security Modal (Read-only status view) -->
     <div id="appCheckModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>🛡️ Firebase App Check 資安防護設定</h3>
+          <h3>🛡️ Firebase App Check 資安防護狀態</h3>
           <span class="close-btn" id="closeAppCheckBtn">&times;</span>
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.8rem;">
-          <div id="appCheckStatusBanner" style="padding: 0.5rem 0.8rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;">
-            <span style="font-size: 1.1rem;">🟢</span>
-            <span id="appCheckBannerText" style="font-size: 0.82rem; color: #6ee7b7; font-weight: 600;">防護狀態：未啟用 (請輸入 Key 或由桌面端同步)</span>
+          <div id="appCheckStatusBanner" style="padding: 0.75rem 1rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; display: flex; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 1.2rem;">🟢</span>
+            <span id="appCheckBannerText" style="font-size: 0.88rem; color: #6ee7b7; font-weight: 700;">資安防護狀態：已啟用 (🛡️ 防護:開)</span>
           </div>
-          <p style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.4; margin: 0;">
-            Firebase App Check 能驗證請求來源，防止未授權客戶端或機器人腳本濫用雲端 Realtime Database。
+          <p style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.5; margin: 0;">
+            Firebase App Check 能夠驗證請求來源，防止未授權客戶端或機器人腳本存取 Realtime Database。
           </p>
-          <div class="form-group">
-            <label style="font-size: 0.85rem; color: #94a3b8;">reCAPTCHA v3 Site Key (金鑰)：</label>
-            <input type="text" id="appCheckSiteKeyInput" class="form-control" placeholder="6Lxxxx..." style="width: 100%; box-sizing: border-box; margin-top: 0.3rem;">
-          </div>
-          <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
-            <input type="checkbox" id="appCheckDebugChk">
-            <label for="appCheckDebugChk" style="font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">啟用 Debug 測試模式 (測試 Token)</label>
+          <div style="padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; font-size: 0.82rem; color: #94a3b8; line-height: 1.5;">
+            ℹ️ <strong>設定說明：</strong> App Check 防護金鑰（Site Key）由桌面端（Python 主控程式）統一管理並同步至雲端。網頁端將會自動取得金鑰並切換防護狀態，無須手動設定。
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="cancelAppCheckBtn">取消</button>
-          <button type="button" class="btn btn-primary" id="saveAppCheckBtn">儲存並啟用防護</button>
+          <button type="button" class="btn btn-primary btn-full" id="confirmAppCheckBtn">我知道了</button>
         </div>
       </div>
     </div>
