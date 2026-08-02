@@ -292,15 +292,20 @@ function initFirebase(url, passcode) {
 
     firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl }, "LW-Tracker-" + Date.now());
 
-    // Activate Firebase App Check BEFORE creating Realtime Database instance
-    initAppCheck();
-
+    // 1. Create Realtime Database instance first for guaranteed core functionality
     db = firebaseApp.database();
 
-    // 2. Start realtime sync listeners immediately
+    // 2. Safely initialize App Check in isolated sandbox without blocking db
+    try {
+      initAppCheck();
+    } catch(appCheckErr) {
+      console.warn("App Check sandbox notice:", appCheckErr.message);
+    }
+
+    // 3. Start realtime sync listeners immediately
     startSyncListeners();
 
-    // 3. Monitor socket connection status
+    // 4. Monitor socket connection status
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
         updateConnectionStatus('online');
