@@ -71,6 +71,20 @@ async function loadConfigAndConnect() {
   if (savedUrl) currentDbUrl = savedUrl.replace(/\/$/, "");
   if (savedCode) currentPasscode = savedCode;
 
+  // Pre-fetch remote app_check_config.json to ensure siteKey is ready BEFORE initializing Firebase
+  try {
+    const cleanUrl = currentDbUrl.replace(/\/$/, "");
+    const appCheckUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/app_check_config.json`;
+    const appCheckRes = await fetch(appCheckUrl);
+    if (appCheckRes.ok) {
+      const appCheckData = await appCheckRes.json();
+      if (appCheckData && appCheckData.siteKey && typeof appCheckData.siteKey === 'string' && appCheckData.siteKey.trim()) {
+        appCheckSiteKey = appCheckData.siteKey.trim();
+        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+      }
+    }
+  } catch (e) {}
+
   initFirebase(currentDbUrl, currentPasscode);
 }
 
@@ -277,10 +291,11 @@ function initFirebase(url, passcode) {
     }
 
     firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl }, "LW-Tracker-" + Date.now());
-    db = firebaseApp.database();
 
-    // Activate Firebase App Check (reCAPTCHA v3 / Debug Provider)
+    // Activate Firebase App Check BEFORE creating Realtime Database instance
     initAppCheck();
+
+    db = firebaseApp.database();
 
     // 2. Start realtime sync listeners immediately
     startSyncListeners();
