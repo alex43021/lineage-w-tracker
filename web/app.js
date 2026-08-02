@@ -169,28 +169,15 @@ async function recoverBossStatesFromReportHistory() {
   }
 }
 
-async function getAppCheckHeaders() {
-  if (firebaseApp && typeof firebase.appCheck === 'function') {
-    try {
-      const tokenObj = await firebase.appCheck(firebaseApp).getToken();
-      if (tokenObj && tokenObj.token) {
-        return { 'X-Firebase-AppCheck': tokenObj.token };
-      }
-    } catch (e) {}
-  }
-  return {};
-}
-
 // Direct REST API Fallback Fetch for Instant Rendering
 async function fetchDirectRestData(url, passcode) {
   try {
     const cleanUrl = url.replace(/\/$/, "");
-    const appHeaders = await getAppCheckHeaders();
 
     // 0. Fetch App Check config synced from desktop app
     const appCheckUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/app_check_config.json`;
     try {
-      const appCheckRes = await fetch(appCheckUrl, { headers: appHeaders });
+      const appCheckRes = await fetch(appCheckUrl);
       if (appCheckRes.ok) {
         const appCheckData = await appCheckRes.json();
         if (appCheckData && appCheckData.siteKey) {
@@ -198,9 +185,6 @@ async function fetchDirectRestData(url, passcode) {
           if (fetchedKey && fetchedKey !== appCheckSiteKey) {
             appCheckSiteKey = fetchedKey;
             localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-            initFirebase(currentDbUrl, currentPasscode);
-          } else if (fetchedKey) {
-            updateAppCheckBadge(true);
           }
         }
       }
@@ -209,7 +193,7 @@ async function fetchDirectRestData(url, passcode) {
     // 1. Fetch remote boss rules
     const rulesUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_rules.json`;
     try {
-      const rulesRes = await fetch(rulesUrl, { headers: appHeaders });
+      const rulesRes = await fetch(rulesUrl);
       if (rulesRes.ok) {
         const rulesData = await rulesRes.json();
         const normRules = normalizeBossRules(rulesData);
@@ -224,7 +208,7 @@ async function fetchDirectRestData(url, passcode) {
 
     // 2. Fetch remote boss states
     const restUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_states.json`;
-    const res = await fetch(restUrl, { headers: appHeaders });
+    const res = await fetch(restUrl);
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object') {
