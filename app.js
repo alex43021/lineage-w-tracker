@@ -42,12 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
   updateBossTypeToggleUI();
   setTimelineSpanHours(timelineSpanHours);
   
-  // Instant 0ms App Check badge update & immediate UI rendering with default boss rules
-  updateAppCheckBadge(true);
+  // Render boss grid & timeline immediately with default rules for zero-delay usability
   bossRules = defaultBossRules;
   renderBossGrid();
   updateTimeline();
   renderSequenceQueue();
+  updateAppCheckBadge(false);
 
   // Start 1-second interval timer for live countdowns & timeline indicator
   setInterval(tickRealtimeLoop, 1000);
@@ -302,22 +302,22 @@ function initFirebase(url, passcode) {
     // 1. Create Realtime Database instance first for guaranteed core functionality
     db = firebaseApp.database();
 
-    // 2. Safely initialize App Check in isolated sandbox without blocking db
-    try {
-      initAppCheck();
-    } catch(appCheckErr) {
-      console.warn("App Check sandbox notice:", appCheckErr.message);
-    }
-
-    // 3. Start realtime sync listeners immediately
+    // 2. Start realtime sync listeners immediately
     startSyncListeners();
 
-    // 4. Monitor socket connection status
+    // 3. Monitor socket connection status and activate App Check ONLY after DB connection is verified 100% normal
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
         updateConnectionStatus('online');
         localStorage.setItem('lw_db_url', currentDbUrl);
         localStorage.setItem('lw_passcode', currentPasscode);
+
+        // Sequence: DB Verified Normal -> Check for SiteKey -> Activate App Check
+        try {
+          initAppCheck();
+        } catch(appCheckErr) {
+          console.warn("App Check activation notice:", appCheckErr.message);
+        }
       }
     });
   } catch (e) {
