@@ -18,6 +18,7 @@ let selectedBossForReport = null;
 let deferredPrompt = null;
 let timelineSpanHours = parseInt(localStorage.getItem('lw_timeline_span') || "3", 10);
 let showCooldownBosses = localStorage.getItem('lw_show_cooldown') !== 'false';
+let showFixedBosses = localStorage.getItem('lw_show_fixed') !== 'false';
 let appCheckSiteKey = (localStorage.getItem('lw_appcheck_site_key') || "").trim();
 let isAppCheckDebugMode = localStorage.getItem('lw_appcheck_debug') === 'true';
 
