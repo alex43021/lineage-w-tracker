@@ -19,7 +19,7 @@ let deferredPrompt = null;
 let timelineSpanHours = parseInt(localStorage.getItem('lw_timeline_span') || "3", 10);
 let showCooldownBosses = localStorage.getItem('lw_show_cooldown') !== 'false';
 let showFixedBosses = localStorage.getItem('lw_show_fixed') !== 'false';
-let appCheckSiteKey = localStorage.getItem('lw_appcheck_site_key') || "";
+let appCheckSiteKey = (localStorage.getItem('lw_appcheck_site_key') || "").trim();
 let isAppCheckDebugMode = localStorage.getItem('lw_appcheck_debug') === 'true';
 
 // Intercept browser PWA install prompt
@@ -57,8 +57,9 @@ async function loadConfigAndConnect() {
       const config = await response.json();
       currentDbUrl = (config.databaseURL || currentDbUrl).replace(/\/$/, "");
       currentPasscode = config.passcode || currentPasscode;
-      if (config.appCheckSiteKey && !appCheckSiteKey) {
-        appCheckSiteKey = config.appCheckSiteKey;
+      if (config.appCheckSiteKey && typeof config.appCheckSiteKey === 'string' && config.appCheckSiteKey.trim()) {
+        appCheckSiteKey = config.appCheckSiteKey.trim();
+        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
       }
     }
   } catch (e) {
