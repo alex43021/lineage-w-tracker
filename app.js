@@ -42,44 +42,59 @@ document.addEventListener('DOMContentLoaded', () => {
   updateBossTypeToggleUI();
   setTimelineSpanHours(timelineSpanHours);
   
-  // Render boss grid & timeline immediately with default rules for zero-delay usability
+  // 1. Render boss grid & timeline immediately with default rules for zero-delay usability
   bossRules = defaultBossRules;
   renderBossGrid();
   updateTimeline();
   renderSequenceQueue();
   updateAppCheckBadge(false);
 
-  // Start 1-second interval timer for live countdowns & timeline indicator
-  setInterval(tickRealtimeLoop, 1000);
-  
-  loadConfigAndConnect();
-});
-
-// Load configuration & connect to Firebase
-async function loadConfigAndConnect() {
-  try {
-    const response = await fetch('data/firebase_config.json');
-    if (response.ok) {
-      const config = await response.json();
-      currentDbUrl = (config.databaseURL || currentDbUrl).replace(/\/$/, "");
-      currentPasscode = config.passcode || currentPasscode;
-      if (config.appCheckSiteKey && typeof config.appCheckSiteKey === 'string' && config.appCheckSiteKey.trim()) {
-        appCheckSiteKey = config.appCheckSiteKey.trim();
-        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-      }
-    }
-  } catch (e) {
-    console.log("data/firebase_config.json not found, using defaults or localStorage.");
-  }
-
-  // Check localStorage overrides
+  // 2. Check localStorage overrides synchronously
   const savedUrl = localStorage.getItem('lw_db_url');
   const savedCode = localStorage.getItem('lw_passcode');
   if (savedUrl) currentDbUrl = savedUrl.replace(/\/$/, "");
   if (savedCode) currentPasscode = savedCode;
 
-  // Immediately initialize Firebase database connection without blocking
+  // 3. Start 1-second interval timer for live countdowns & timeline indicator
+  setInterval(tickRealtimeLoop, 1000);
+  
+  // 4. SYNCHRONOUSLY initialize Firebase database connection NOW (0ms delay)
   initFirebase(currentDbUrl, currentPasscode);
+
+  // 5. Non-blocking async config fetch in background
+  loadConfigOverrides();
+});
+
+// Load configuration overrides in background
+async function loadConfigOverrides() {
+  try {
+    const response = await fetch('data/firebase_config.json');
+    if (response.ok) {
+      const config = await response.json();
+      let changed = false;
+      if (config.databaseURL && config.databaseURL.replace(/\/$/, "") !== currentDbUrl) {
+        currentDbUrl = config.databaseURL.replace(/\/$/, "");
+        changed = true;
+      }
+      if (config.passcode && config.passcode !== currentPasscode) {
+        currentPasscode = config.passcode;
+        changed = true;
+      }
+      if (config.appCheckSiteKey && typeof config.appCheckSiteKey === 'string' && config.appCheckSiteKey.trim()) {
+        const newKey = config.appCheckSiteKey.trim();
+        if (newKey !== appCheckSiteKey) {
+          appCheckSiteKey = newKey;
+          localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+          changed = true;
+        }
+      }
+      if (changed) {
+        initFirebase(currentDbUrl, currentPasscode);
+      }
+    }
+  } catch (e) {
+    console.log("data/firebase_config.json not found, using defaults.");
+  }
 }
 
 function normalizeBossStates(data) {
