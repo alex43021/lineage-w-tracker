@@ -16,19 +16,45 @@
     {
       "name": "克特",
       "type": "fixed",
-      "days": [0, 1, 2, 3, 4, 5, 6],
-      "fixed_times": ["18:00"],
-      "spawn_keywords": ["克特", "出現"],
-      "death_keywords": ["克特", "擊敗"],
+      "days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "fixed_times": [
+        "18:00"
+      ],
+      "spawn_keywords": [
+        "克特",
+        "出現"
+      ],
+      "death_keywords": [
+        "克特",
+        "擊敗"
+      ],
       "cooldown_mins": 1440
     },
     {
       "name": "巨大飛龍",
       "type": "fixed",
-      "days": [3],
-      "fixed_times": ["19:00"],
-      "spawn_keywords": ["巨大飛龍", "出現"],
-      "death_keywords": ["巨大飛龍", "擊敗"],
+      "days": [
+        3
+      ],
+      "fixed_times": [
+        "19:00"
+      ],
+      "spawn_keywords": [
+        "巨大飛龍",
+        "出現"
+      ],
+      "death_keywords": [
+        "巨大飛龍",
+        "擊敗"
+      ],
       "cooldown_mins": 10080
     },
     {
@@ -2122,5 +2148,6 @@
     "居教者莫利提亞開始尋找目攝。",
     "居救着莫利提亞開始尊找目，可",
     "居牧老莫利提亞開始承我自褲"
-  ]
+  ],
+  "firebase_appcheck_token": "6LfTh3EtAAAAAL-GPhubU_uX29uNfTPb01PlixKn"
 }

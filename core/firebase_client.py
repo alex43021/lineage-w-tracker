@@ -243,3 +243,16 @@ class FirebaseClient:
                         self.delete_boss_state(k)
         except Exception as e:
             logger.error(f"Failed to purge stale boss states: {e}")
+
+    def push_app_check_config(self, site_key):
+        """Sync App Check site key to Firebase so Web PWA automatically receives and applies it."""
+        url = self._get_url("app_check_config")
+        if not url:
+            return False
+        try:
+            response = self.session.put(url, json={"siteKey": site_key}, timeout=5)
+            logger.info(f"Pushed App Check config to Firebase: HTTP {response.status_code}")
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Firebase push_app_check_config failed: {e}")
+            return False

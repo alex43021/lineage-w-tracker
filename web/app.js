@@ -166,6 +166,20 @@ async function fetchDirectRestData(url, passcode) {
   try {
     const cleanUrl = url.replace(/\/$/, "");
 
+    // 0. Fetch App Check config synced from desktop app
+    const appCheckUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/app_check_config.json`;
+    try {
+      const appCheckRes = await fetch(appCheckUrl);
+      if (appCheckRes.ok) {
+        const appCheckData = await appCheckRes.json();
+        if (appCheckData && appCheckData.siteKey && appCheckData.siteKey !== appCheckSiteKey) {
+          appCheckSiteKey = appCheckData.siteKey;
+          localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+          initAppCheck();
+        }
+      }
+    } catch(e) {}
+
     // 1. Fetch remote boss rules
     const rulesUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_rules.json`;
     try {

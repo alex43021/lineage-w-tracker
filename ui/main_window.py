@@ -1676,6 +1676,14 @@ class MainWindow(QWidget):
         self.save_settings()
         self.log_message("系統設定已儲存。")
         
+        # Push App Check config to Firebase so web clients sync up
+        url = self.settings.get("firebase_url")
+        passcode = self.settings.get("firebase_passcode")
+        site_key = self.settings.get("firebase_appcheck_token", "")
+        if url and passcode:
+            fb = FirebaseClient(url, passcode, site_key)
+            fb.push_app_check_config(site_key)
+
         # Write firebase_config.json to web/data/ so GitHub Pages PWA can sync up
         self.write_pwa_firebase_config()
 
