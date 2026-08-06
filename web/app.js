@@ -1059,8 +1059,16 @@ async function fetchDirectRestData(url, passcode) {
   try {
     const cleanUrl = url.replace(/\/$/, "");
 
+    let authQuery = "";
+    try {
+      if (firebase.auth && firebase.auth(firebaseApp).currentUser) {
+        const token = await firebase.auth(firebaseApp).currentUser.getIdToken();
+        if (token) authQuery = `?auth=${token}`;
+      }
+    } catch(e) {}
+
     // 0. Fetch App Check config synced from desktop app
-    const appCheckUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/app_check_config.json`;
+    const appCheckUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/app_check_config.json${authQuery}`;
     try {
       const appCheckRes = await fetch(appCheckUrl);
       if (appCheckRes.ok) {
@@ -1076,7 +1084,7 @@ async function fetchDirectRestData(url, passcode) {
     } catch(e) {}
 
     // 1. Fetch remote boss rules
-    const rulesUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_rules.json`;
+    const rulesUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_rules.json${authQuery}`;
     try {
       const rulesRes = await fetch(rulesUrl);
       if (rulesRes.ok) {
@@ -1092,7 +1100,7 @@ async function fetchDirectRestData(url, passcode) {
     }
 
     // 2. Fetch remote boss states
-    const restUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_states.json`;
+    const restUrl = `${cleanUrl}/lineage_w_tracker/${passcode}/boss_states.json${authQuery}`;
     const res = await fetch(restUrl);
     if (res.ok) {
       const data = await res.json();
@@ -1138,9 +1146,6 @@ async function initFirebase(url, passcode) {
 
   updateConnectionStatus('connecting');
 
-  // 1. Direct REST fetch for immediate 200ms rendering
-  fetchDirectRestData(currentDbUrl, currentPasscode);
-
   if (db) {
     try {
       db.ref(`lineage_w_tracker/${currentPasscode}/boss_states`).off();
@@ -1174,7 +1179,10 @@ async function initFirebase(url, passcode) {
       console.warn("Firebase 匿名登入失敗 (將以未認證模式繼續):", authErr.message);
     }
 
-    // 3. Monitor auth state changes
+    // 3. Direct REST fetch after auth
+    fetchDirectRestData(currentDbUrl, currentPasscode);
+
+    // 4. Monitor auth state changes
     firebase.auth(firebaseApp).onAuthStateChanged((user) => {
       if (user) {
         console.log("Firebase Auth 已認證, uid:", user.uid, "isAnonymous:", user.isAnonymous);
@@ -1183,13 +1191,13 @@ async function initFirebase(url, passcode) {
       }
     });
 
-    // 4. Create Realtime Database instance
+    // 5. Create Realtime Database instance
     db = firebaseApp.database();
 
-    // 5. Start realtime sync listeners
+    // 6. Start realtime sync listeners
     startSyncListeners();
 
-    // 6. Monitor socket connection status
+    // 7. Monitor socket connection status
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
         updateAppCheckBadge(true);
