@@ -1,8 +1,11 @@
 import logging
 import requests
 import json
+import time
 
 logger = logging.getLogger(__name__)
+
+FIREBASE_API_KEY = "AIzaSyDHKGjbIMXam31tguYnm0ppJZ9fL7YDWBM"
 
 class FirebaseClient:
     def __init__(self, db_url=None, passcode=None, app_check_token=None):
@@ -15,6 +18,11 @@ class FirebaseClient:
         self.db_url = db_url
         self.passcode = passcode if passcode else "default"
         self.app_check_token = app_check_token
+
+        # Anonymous Auth token state
+        self._id_token = None
+        self._refresh_token_str = None
+        self._token_expiry = 0
         
         # Persistent HTTP session for connection pooling and keep-alive
         self.session = requests.Session()
@@ -24,6 +32,65 @@ class FirebaseClient:
 
         if self.app_check_token:
             self.session.headers.update({"X-Firebase-AppCheck": str(self.app_check_token).strip()})
+
+    def sign_in_anonymously(self):
+        """Sign in anonymously via Firebase Auth REST API. Returns True on success."""
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}"
+        try:
+            resp = self.session.post(url, json={"returnSecureToken": True}, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                self._id_token = data.get("idToken")
+                self._refresh_token_str = data.get("refreshToken")
+                expires_in = int(data.get("expiresIn", 3600))
+                self._token_expiry = time.time() + expires_in
+                uid = data.get("localId", "unknown")
+                logger.info(f"Firebase 匿名登入成功, uid: {uid}")
+                return True
+            else:
+                logger.error(f"Firebase 匿名登入失敗: HTTP {resp.status_code} - {resp.text}")
+                return False
+        except Exception as e:
+            logger.error(f"Firebase 匿名登入例外: {e}")
+            return False
+
+    def _refresh_id_token(self):
+        """Refresh the id token using the refresh token. Returns True on success."""
+        if not self._refresh_token_str:
+            return False
+        url = f"https://securetoken.googleapis.com/v1/token?key={FIREBASE_API_KEY}"
+        try:
+            resp = self.session.post(url, json={
+                "grant_type": "refresh_token",
+                "refresh_token": self._refresh_token_str
+            }, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                self._id_token = data.get("id_token")
+                self._refresh_token_str = data.get("refresh_token", self._refresh_token_str)
+                expires_in = int(data.get("expires_in", 3600))
+                self._token_expiry = time.time() + expires_in
+                logger.info("Firebase Auth token 刷新成功")
+                return True
+            else:
+                logger.error(f"Firebase token 刷新失敗: HTTP {resp.status_code}")
+                return False
+        except Exception as e:
+            logger.error(f"Firebase token 刷新例外: {e}")
+            return False
+
+    def _get_valid_token(self):
+        """Get a valid id token, refreshing or re-signing-in as needed."""
+        if self._id_token and time.time() < (self._token_expiry - 300):
+            return self._id_token
+        # Token expired or about to expire
+        if self._refresh_token_str:
+            if self._refresh_id_token():
+                return self._id_token
+        # No refresh token or refresh failed, sign in again
+        if self.sign_in_anonymously():
+            return self._id_token
+        return None
 
     def set_app_check_token(self, token):
         """Dynamically update App Check token for HTTP requests."""
@@ -50,8 +117,11 @@ class FirebaseClient:
     def _get_url(self, path):
         if not self.db_url:
             return None
-        # Namespace under lineage_w_tracker/<passcode>/<path>.json
-        return f"{self.db_url}/lineage_w_tracker/{self.passcode}/{path}.json"
+        base = f"{self.db_url}/lineage_w_tracker/{self.passcode}/{path}.json"
+        token = self._get_valid_token()
+        if token:
+            return f"{base}?auth={token}"
+        return base
 
     def test_connection(self):
         """Test connection by writing a dummy status code."""

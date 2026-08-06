@@ -1,0 +1,48 @@
+# ── Dependencies ──
+node_modules/
+.pnpm-store/
+vendor/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# ── Build outputs ──
+dist/
+build/
+.next/
+out/
+coverage/
+*.egg-info/
+
+# ── Lock files ──
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+uv.lock
+poetry.lock
+
+# ── Generated / minified ──
+**/*.min.js
+**/*.min.css
+**/*.map
+
+# ── Data & assets the AI doesn't need ──
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.mp4
+**/*.zip
+**/*.csv
+**/*.parquet
+**/*.sqlite
+**/*.db
+
+# ── Env & IDE ──
+.env
+.env.*
+.idea/
+.DS_Store

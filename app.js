@@ -1131,8 +1131,8 @@ function normalizeBossRules(data) {
   return rules.length > 0 ? rules : defaultBossRules;
 }
 
-// Initialize Firebase Realtime Database
-function initFirebase(url, passcode) {
+// Initialize Firebase Realtime Database with Anonymous Authentication
+async function initFirebase(url, passcode) {
   currentDbUrl = url.replace(/\/$/, "");
   currentPasscode = passcode || "123456789";
 
@@ -1153,7 +1153,7 @@ function initFirebase(url, passcode) {
       try { firebaseApp.delete(); } catch(e){}
     }
 
-    firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl }, "LW-Tracker-" + Date.now());
+    firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl, apiKey: "AIzaSyDHKGjbIMXam31tguYnm0ppJZ9fL7YDWBM", projectId: "lineage-w-boss-tracker" }, "LW-Tracker-" + Date.now());
 
     // 1. Activate App Check BEFORE database instance if siteKey exists (prevents Enforce Mode deadlock)
     if (appCheckSiteKey || isAppCheckDebugMode) {
@@ -1166,13 +1166,30 @@ function initFirebase(url, passcode) {
       updateAppCheckBadge(false);
     }
 
-    // 2. Create Realtime Database instance
+    // 2. Firebase Anonymous Authentication
+    try {
+      const userCredential = await firebase.auth(firebaseApp).signInAnonymously();
+      console.log("Firebase 匿名登入成功, uid:", userCredential.user.uid);
+    } catch (authErr) {
+      console.warn("Firebase 匿名登入失敗 (將以未認證模式繼續):", authErr.message);
+    }
+
+    // 3. Monitor auth state changes
+    firebase.auth(firebaseApp).onAuthStateChanged((user) => {
+      if (user) {
+        console.log("Firebase Auth 已認證, uid:", user.uid, "isAnonymous:", user.isAnonymous);
+      } else {
+        console.log("Firebase Auth 使用者已登出");
+      }
+    });
+
+    // 4. Create Realtime Database instance
     db = firebaseApp.database();
 
-    // 3. Start realtime sync listeners immediately
+    // 5. Start realtime sync listeners
     startSyncListeners();
 
-    // 4. Monitor socket connection status
+    // 6. Monitor socket connection status
     db.ref('.info/connected').on('value', (snap) => {
       if (snap.val() === true) {
         updateAppCheckBadge(true);
