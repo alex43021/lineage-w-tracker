@@ -2162,7 +2162,7 @@ function renderBossGrid() {
   });
 }
 
-function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = '成員') {
+async function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = '成員') {
   if (!bossName || !deathDateObj) return;
 
   const bossRule = bossRules.find(r => r.name === bossName);
