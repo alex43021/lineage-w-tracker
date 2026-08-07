@@ -472,68 +472,74 @@ class CaptureWorker(QThread):
         reported_window_count = -1
         self._last_fail_log_time = {} # Throttle capture failure logs per HWND
 
-        while self.running:
-            try:
-                now = time.time()
-                
-                # 1. OCR Capture & Processing (Interval-based)
-                if now - last_ocr_time >= ocr_interval:
-                    last_ocr_time = now
-                    cycle_count += 1
+        try:
+            while self.running:
+                try:
+                    now = time.time()
                     
-                    # Auto-detect all game windows each cycle
-                    windows = WindowCapturer.find_all_windows()
-                    
-                    if len(windows) != reported_window_count:
-                        reported_window_count = len(windows)
-                        if reported_window_count > 0:
-                            titles = ', '.join([w['title'] for w in windows])
-                            self.log_signal.emit(f"偵測到 {reported_window_count} 個遊戲視窗: {titles}")
-                        else:
-                            self.log_signal.emit("未偵測到任何遊戲視窗，等待視窗出現...")
-                    
-                    for win in windows:
-                        if not self.running:
-                            break
-                        hwnd = win['hwnd']
-                        if hwnd and win32gui.IsWindow(hwnd):
+                    # 1. OCR Capture & Processing (Interval-based)
+                    if now - last_ocr_time >= ocr_interval:
+                        last_ocr_time = now
+                        cycle_count += 1
+                        
+                        # Auto-detect all game windows each cycle
+                        windows = WindowCapturer.find_all_windows()
+                        
+                        if len(windows) != reported_window_count:
+                            reported_window_count = len(windows)
+                            if reported_window_count > 0:
+                                titles = ', '.join([w['title'] for w in windows])
+                                self.log_signal.emit(f"偵測到 {reported_window_count} 個遊戲視窗: {titles}")
+                            else:
+                                self.log_signal.emit("未偵測到任何遊戲視窗，等待視窗出現...")
+                        
+                        for win in windows:
+                            if not self.running:
+                                break
+                            hwnd = win['hwnd']
+                            if hwnd and win32gui.IsWindow(hwnd):
+                                try:
+                                    self.perform_ocr_cycle(hwnd)
+                                except Exception as e:
+                                    logger.error(f"Error in OCR cycle for HWND {hwnd}: {e}")
+
+                        # Periodic garbage collection (every ~5 min)
+                        if cycle_count % 150 == 0:
+                            import gc
+                            gc.collect()
+
+                    # 2. Check for Manual Reports (Every 2 seconds)
+                    if now - last_report_check_time >= 2.0:
+                        last_report_check_time = now
+                        if self.firebase.is_configured():
                             try:
-                                self.perform_ocr_cycle(hwnd)
+                                self.process_incoming_firebase_events()
                             except Exception as e:
-                                logger.error(f"Error in OCR cycle for HWND {hwnd}: {e}")
+                                logger.error(f"Error during Firebase report processing: {e}")
 
-                    # Periodic garbage collection (every ~5 min)
-                    if cycle_count % 150 == 0:
-                        import gc
-                        gc.collect()
+                    # 3. Connection Ping & Status Update (Every 30 seconds to avoid blocking OCR loop)
+                    if now - last_ping_time >= 30.0:
+                        last_ping_time = now
+                        if self.firebase.is_configured():
+                            try:
+                                success, msg = self.firebase.test_connection()
+                                self.connection_status_signal.emit(success, msg)
+                            except Exception as e:
+                                logger.error(f"Error during Firebase status ping: {e}")
+                        else:
+                            self.connection_status_signal.emit(False, "未設定 Firebase 連線")
+                except Exception as outer_e:
+                    logger.error(f"Unexpected error in CaptureWorker loop: {outer_e}")
 
-                # 2. Check for Manual Reports (Every 2 seconds)
-                if now - last_report_check_time >= 2.0:
-                    last_report_check_time = now
-                    if self.firebase.is_configured():
-                        try:
-                            self.process_incoming_firebase_events()
-                        except Exception as e:
-                            logger.error(f"Error during Firebase report processing: {e}")
-
-                # 3. Connection Ping & Status Update (Every 30 seconds to avoid blocking OCR loop)
-                if now - last_ping_time >= 30.0:
-                    last_ping_time = now
-                    if self.firebase.is_configured():
-                        try:
-                            success, msg = self.firebase.test_connection()
-                            self.connection_status_signal.emit(success, msg)
-                        except Exception as e:
-                            logger.error(f"Error during Firebase status ping: {e}")
-                    else:
-                        self.connection_status_signal.emit(False, "未設定 Firebase 連線")
-            except Exception as outer_e:
-                logger.error(f"Unexpected error in CaptureWorker loop: {outer_e}")
-
-            # Sleep short time to prevent maxing out CPU
-            time.sleep(0.1)
-
-        self.log_signal.emit("背景監控執行緒已停止。")
+                # Sleep short time to prevent maxing out CPU
+                time.sleep(0.1)
+        finally:
+            if hasattr(self, "capturer") and self.capturer:
+                try:
+                    self.capturer.close()
+                except Exception:
+                    pass
+            self.log_signal.emit("背景監控執行緒已停止。")
 
     def sync_initial_config(self):
         """Publish VAPID public key and initial states to Firebase Realtime Database."""
