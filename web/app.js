@@ -889,6 +889,7 @@ let showCooldownBosses = localStorage.getItem('lw_show_cooldown') !== 'false';
 let showFixedBosses = localStorage.getItem('lw_show_fixed') !== 'false';
 let appCheckSiteKey = (localStorage.getItem('lw_appcheck_site_key') || "").trim();
 let isAppCheckDebugMode = localStorage.getItem('lw_appcheck_debug') === 'true';
+let firebaseApiKey = (localStorage.getItem('lw_firebase_api_key') || "").trim();
 
 // Intercept browser PWA install prompt
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -908,6 +909,51 @@ if ('serviceWorker' in navigator) {
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
+  initFirebase(currentDbUrl, currentPasscode);
+  loadConfig();
+});
+
+async function loadConfig() {
+  try {
+    const response = await fetch('data/firebase_config.json');
+    if (response.ok) {
+      const config = await response.json();
+      let changed = false;
+      if (config.databaseURL && config.databaseURL.replace(/\/$/, "") !== currentDbUrl) {
+        currentDbUrl = config.databaseURL.replace(/\/$/, "");
+        changed = true;
+      }
+      if (config.passcode && config.passcode !== currentPasscode) {
+        currentPasscode = config.passcode;
+        changed = true;
+      }
+      if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.trim()) {
+        const newApiKey = config.apiKey.trim();
+        if (newApiKey !== firebaseApiKey) {
+          firebaseApiKey = newApiKey;
+          localStorage.setItem('lw_firebase_api_key', firebaseApiKey);
+          changed = true;
+        }
+      }
+      if (config.appCheckSiteKey && typeof config.appCheckSiteKey === 'string' && config.appCheckSiteKey.trim()) {
+        const newKey = config.appCheckSiteKey.trim();
+        if (newKey !== appCheckSiteKey) {
+          appCheckSiteKey = newKey;
+          localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+          changed = true;
+        }
+      }
+      if (changed) {
+        initFirebase(currentDbUrl, currentPasscode);
+      }
+    }
+  } catch (e) {
+    console.log("data/firebase_config.json not found, using defaults.");
+  }
+}
+
+// Internal Logic Setup
+function postLoadInit() {
   updateBossTypeToggleUI();
   setTimelineSpanHours(timelineSpanHours);
   
@@ -1158,7 +1204,7 @@ async function initFirebase(url, passcode) {
       try { firebaseApp.delete(); } catch(e){}
     }
 
-    firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl, apiKey: "AIzaSyDHKGjbIMXam31tguYnm0ppJZ9fL7YDWBM", projectId: "lineage-w-boss-tracker" }, "LW-Tracker-" + Date.now());
+    firebaseApp = firebase.initializeApp({ databaseURL: currentDbUrl, apiKey: firebaseApiKey || "AIzaSyDHKGjbIMXam31tguYnm0ppJZ9fL7YDWBM", projectId: "lineage-w-boss-tracker" }, "LW-Tracker-" + Date.now());
 
     // 1. Activate App Check BEFORE database instance if siteKey exists (prevents Enforce Mode deadlock)
     if (appCheckSiteKey || isAppCheckDebugMode) {
