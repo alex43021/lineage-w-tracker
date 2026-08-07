@@ -889,7 +889,7 @@ let showCooldownBosses = localStorage.getItem('lw_show_cooldown') !== 'false';
 let showFixedBosses = localStorage.getItem('lw_show_fixed') !== 'false';
 let appCheckSiteKey = (localStorage.getItem('lw_appcheck_site_key') || "").trim();
 let isAppCheckDebugMode = localStorage.getItem('lw_appcheck_debug') === 'true';
-let firebaseApiKey = (localStorage.getItem('lw_firebase_api_key') || "").trim();
+let firebaseApiKey = (localStorage.getItem('lw_firebase_api_key') || "AIzaSyCICtzptbLc7mpqAkf4Vt7mBoNxSax9zMg").trim();
 
 // Intercept browser PWA install prompt
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -907,10 +907,9 @@ if ('serviceWorker' in navigator) {
 }
 
 // Initialize on DOM Ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   setupUIEventListeners();
-  initFirebase(currentDbUrl, currentPasscode);
-  loadConfig();
+  await loadConfig();
 });
 
 async function loadConfig() {
@@ -918,38 +917,25 @@ async function loadConfig() {
     const response = await fetch('data/firebase_config.json');
     if (response.ok) {
       const config = await response.json();
-      let changed = false;
       if (config.databaseURL && config.databaseURL.replace(/\/$/, "") !== currentDbUrl) {
         currentDbUrl = config.databaseURL.replace(/\/$/, "");
-        changed = true;
       }
       if (config.passcode && config.passcode !== currentPasscode) {
         currentPasscode = config.passcode;
-        changed = true;
       }
       if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.trim()) {
-        const newApiKey = config.apiKey.trim();
-        if (newApiKey !== firebaseApiKey) {
-          firebaseApiKey = newApiKey;
-          localStorage.setItem('lw_firebase_api_key', firebaseApiKey);
-          changed = true;
-        }
+        firebaseApiKey = config.apiKey.trim();
+        localStorage.setItem('lw_firebase_api_key', firebaseApiKey);
       }
       if (config.appCheckSiteKey && typeof config.appCheckSiteKey === 'string' && config.appCheckSiteKey.trim()) {
-        const newKey = config.appCheckSiteKey.trim();
-        if (newKey !== appCheckSiteKey) {
-          appCheckSiteKey = newKey;
-          localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
-          changed = true;
-        }
-      }
-      if (changed) {
-        initFirebase(currentDbUrl, currentPasscode);
+        appCheckSiteKey = config.appCheckSiteKey.trim();
+        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
       }
     }
   } catch (e) {
     console.log("data/firebase_config.json not found, using defaults.");
   }
+  initFirebase(currentDbUrl, currentPasscode);
 }
 
 function normalizeBossStates(data) {
@@ -2182,9 +2168,24 @@ function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = 'ÊàêÂ
   updateTimeline();
   renderSequenceQueue();
 
-  // 1. Direct REST PATCH to /boss_states.json for instant cloud sync with exact raw Chinese boss name key
+  // 1. Primary: Update Firebase via active WebSocket database instance (automatic auth)
+  if (db) {
+    try {
+      db.ref(`lineage_w_tracker/${currentPasscode}/boss_states/${bossName}`).update(bossStates[bossName]);
+    } catch(e) {}
+  }
+
+  // 2. Secondary: Direct REST PATCH fallback with auth token
+  let authQuery = "";
+  try {
+    if (firebase.auth && firebase.auth(firebaseApp).currentUser) {
+      const token = await firebase.auth(firebaseApp).currentUser.getIdToken();
+      if (token) authQuery = `?auth=${token}`;
+    }
+  } catch(e) {}
+
   const cleanUrl = currentDbUrl.replace(/\/$/, "");
-  const stateUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/boss_states.json`;
+  const stateUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/boss_states.json${authQuery}`;
   
   const updatePayload = {};
   updatePayload[bossName] = bossStates[bossName];
@@ -2201,7 +2202,7 @@ function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = 'ÊàêÂ
   })
   .catch(err => console.error("Error updating boss_states:", err));
 
-  // 2. Also record in /reports/<reportId>.json for log history
+  // 3. Record in /reports/<reportId>.json for log history
   const reportId = 'rep_' + Date.now();
   const reportData = {
     boss_name: bossName,
@@ -2212,7 +2213,14 @@ function applyAndBroadcastBossDeath(bossName, deathDateObj, reporterName = 'ÊàêÂ
     timestamp: lastDeathIso,
     status: 'dead'
   };
-  const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json`;
+
+  if (db) {
+    try {
+      db.ref(`lineage_w_tracker/${currentPasscode}/reports/${reportId}`).set(reportData);
+    } catch(e) {}
+  }
+
+  const reportUrl = `${cleanUrl}/lineage_w_tracker/${currentPasscode}/reports/${reportId}.json${authQuery}`;
   fetch(reportUrl, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
