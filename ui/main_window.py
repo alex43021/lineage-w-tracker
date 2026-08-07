@@ -421,7 +421,7 @@ class CaptureWorker(QThread):
         self.capturer = WindowCapturer()
         self.ocr_engine = OCREngine(lang=settings.get("ocr_lang", "zh-Hant"))
         self.deduplicator = ChatDeduplicator(threshold=settings.get("dedup_threshold", 0.75))
-        self.firebase = FirebaseClient(settings.get("firebase_url"), settings.get("firebase_passcode"))
+        self.firebase = FirebaseClient(settings.get("firebase_url"), settings.get("firebase_passcode"), api_key=settings.get("firebase_api_key"))
         self.web_push = WebPushManager(settings.get("vapid_private_key"))
         
         # Load boss rules
@@ -443,6 +443,7 @@ class CaptureWorker(QThread):
         self.deduplicator.threshold = settings.get("dedup_threshold", 0.75)
         self.firebase.db_url = settings.get("firebase_url")
         self.firebase.passcode = settings.get("firebase_passcode")
+        self.firebase.api_key = settings.get("firebase_api_key")
         self.boss_tracker.set_rules(settings.get("boss_rules", []))
         
         # Re-initialize web push if private key changed
@@ -1208,6 +1209,8 @@ class MainWindow(QWidget):
         self.fb_pass_edit = QLineEdit(self.settings.get("firebase_passcode", "7777"))
         self.fb_pass_edit.setEchoMode(QLineEdit.PasswordEchoOnEdit)
         self.fb_pass_edit.setPlaceholderText("血盟暗號 / 密碼")
+        self.fb_api_key_edit = QLineEdit(self.settings.get("firebase_api_key", ""))
+        self.fb_api_key_edit.setPlaceholderText("Firebase Web API Key (AIzaSy... 用於匿名認證，選用)")
         self.fb_appcheck_edit = QLineEdit(self.settings.get("firebase_appcheck_token", ""))
         self.fb_appcheck_edit.setPlaceholderText("Firebase App Check Token / reCAPTCHA v3 Site Key (選用)")
         
@@ -1219,6 +1222,8 @@ class MainWindow(QWidget):
         fb_vbox.addWidget(self.fb_url_edit)
         fb_vbox.addWidget(QLabel("血盟暗號 (Passcode):"))
         fb_vbox.addWidget(self.fb_pass_edit)
+        fb_vbox.addWidget(QLabel("Firebase Web API Key (匿名認證):"))
+        fb_vbox.addWidget(self.fb_api_key_edit)
         fb_vbox.addWidget(QLabel("App Check Token / Site Key (選用):"))
         fb_vbox.addWidget(self.fb_appcheck_edit)
         fb_vbox.addWidget(test_fb_btn)
@@ -1631,6 +1636,7 @@ class MainWindow(QWidget):
     def save_config_from_ui(self):
         self.settings["firebase_url"] = self.fb_url_edit.text().strip()
         self.settings["firebase_passcode"] = self.fb_pass_edit.text().strip()
+        self.settings["firebase_api_key"] = self.fb_api_key_edit.text().strip()
         self.settings["firebase_appcheck_token"] = self.fb_appcheck_edit.text().strip()
         self.settings["only_boss_messages"] = self.only_boss_messages_chk.isChecked()
         self.settings["use_yellow_filter"] = self.use_yellow_filter_chk.isChecked()
@@ -1645,9 +1651,10 @@ class MainWindow(QWidget):
         # Push App Check config to Firebase so web clients sync up
         url = self.settings.get("firebase_url")
         passcode = self.settings.get("firebase_passcode")
+        api_key = self.settings.get("firebase_api_key", "")
         site_key = self.settings.get("firebase_appcheck_token", "")
         if url and passcode:
-            fb = FirebaseClient(url, passcode, site_key)
+            fb = FirebaseClient(url, passcode, api_key=api_key, app_check_token=site_key)
             fb.push_app_check_config(site_key)
 
         # Write firebase_config.json to web/data/ so GitHub Pages PWA can sync up
@@ -1666,6 +1673,7 @@ class MainWindow(QWidget):
         payload = {
           "databaseURL": self.settings.get("firebase_url", ""),
           "passcode": self.settings.get("firebase_passcode", ""),
+          "apiKey": self.settings.get("firebase_api_key", ""),
           "vapidPublicKey": self.settings.get("vapid_public_key", ""),
           "appCheckSiteKey": self.settings.get("firebase_appcheck_token", "")
         }
@@ -1680,13 +1688,14 @@ class MainWindow(QWidget):
         """Instantly tests Firebase database connection with the credentials currently in UI inputs."""
         url = self.fb_url_edit.text().strip()
         passcode = self.fb_pass_edit.text().strip()
+        api_key = self.fb_api_key_edit.text().strip()
         if not url:
             self.update_connection_status(False, "未設定 URL")
             if show_popup:
                 QMessageBox.warning(self, "提示", "請先輸入 Firebase Database URL！\n例如：https://xxxx-default-rtdb.firebaseio.com")
             return
 
-        client = FirebaseClient(url, passcode)
+        client = FirebaseClient(url, passcode, api_key=api_key)
         try:
             success, msg = client.test_connection()
             self.update_connection_status(success, msg)
@@ -1826,7 +1835,7 @@ class MainWindow(QWidget):
             # Evaluate boss tracker on corrected text using existing message timestamp
             parsed_line, event_time = self.parse_line_timestamp(new_full)
             tracker = self.worker.boss_tracker if (self.worker and hasattr(self.worker, "boss_tracker")) else BossTracker(self.settings.get("boss_rules", []))
-            fb = self.worker.firebase if (self.worker and hasattr(self.worker, "firebase")) else FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"))
+            fb = self.worker.firebase if (self.worker and hasattr(self.worker, "firebase")) else FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"), api_key=self.settings.get("firebase_api_key"))
 
             matched_boss = tracker.get_matched_boss_name(new_cleaned)
             is_whitelisted = (new_cleaned in self.settings.get("whitelisted_messages", [])) or (matched_boss is not None)
@@ -2032,7 +2041,7 @@ class MainWindow(QWidget):
             fb = self.worker.firebase
         else:
             tracker = BossTracker(self.settings.get("boss_rules", []))
-            fb = FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"))
+            fb = FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"), api_key=self.settings.get("firebase_api_key"))
             is_disposable_fb = True
 
         try:
@@ -2069,7 +2078,7 @@ class MainWindow(QWidget):
             fb = self.worker.firebase
         else:
             tracker = BossTracker(self.settings.get("boss_rules", []))
-            fb = FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"))
+            fb = FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"), api_key=self.settings.get("firebase_api_key"))
             is_disposable_fb = True
 
         try:

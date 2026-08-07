@@ -8,15 +8,17 @@ logger = logging.getLogger(__name__)
 FIREBASE_API_KEY = "AIzaSyDHKGjbIMXam31tguYnm0ppJZ9fL7YDWBM"
 
 class FirebaseClient:
-    def __init__(self, db_url=None, passcode=None, app_check_token=None):
+    def __init__(self, db_url=None, passcode=None, api_key=None, app_check_token=None):
         """
         db_url: Firebase Realtime Database URL, e.g. "https://my-project-default-rtdb.firebaseio.com"
         passcode: The guild password, used as a secure namespace path.
+        api_key: Optional Firebase Web API Key for Anonymous Auth.
         app_check_token: Optional Firebase App Check token for abuse protection.
         """
         self._db_url = None
         self.db_url = db_url
         self.passcode = passcode if passcode else "default"
+        self.api_key = api_key.strip() if (api_key and isinstance(api_key, str) and api_key.strip()) else FIREBASE_API_KEY
         self.app_check_token = app_check_token
 
         # Anonymous Auth token state
@@ -42,7 +44,10 @@ class FirebaseClient:
 
     def sign_in_anonymously(self):
         """Sign in anonymously via Firebase Auth REST API. Returns True on success."""
-        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}"
+        if not self.api_key:
+            logger.warning("Firebase API Key 未設定，無法執行匿名登入。")
+            return False
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={self.api_key}"
         try:
             resp = self.session.post(url, json={"returnSecureToken": True}, timeout=10)
             if resp.status_code == 200:
@@ -55,7 +60,7 @@ class FirebaseClient:
                 logger.info(f"Firebase 匿名登入成功, uid: {uid}")
                 return True
             else:
-                logger.error(f"Firebase 匿名登入失敗: HTTP {resp.status_code} - {resp.text}")
+                logger.warning(f"Firebase 匿名登入失敗 (HTTP {resp.status_code}): {resp.text}。若 Database 規則為 auth != null，請在 [設定] 中輸入有效的 Firebase Web API Key。")
                 return False
         except Exception as e:
             logger.error(f"Firebase 匿名登入例外: {e}")
@@ -63,9 +68,9 @@ class FirebaseClient:
 
     def _refresh_id_token(self):
         """Refresh the id token using the refresh token. Returns True on success."""
-        if not self._refresh_token_str:
+        if not self._refresh_token_str or not self.api_key:
             return False
-        url = f"https://securetoken.googleapis.com/v1/token?key={FIREBASE_API_KEY}"
+        url = f"https://securetoken.googleapis.com/v1/token?key={self.api_key}"
         try:
             resp = self.session.post(url, json={
                 "grant_type": "refresh_token",
@@ -139,6 +144,8 @@ class FirebaseClient:
             response = self.session.put(url, json={"online": True, "last_ping": "now"}, timeout=5)
             if response.status_code == 200:
                 return True, "Connection successful."
+            elif response.status_code == 401:
+                return False, "401 Permission Denied (寫入權限被拒絕)：若 Firebase Rules 設為 auth != null，請在 [設定] 中填寫正確的 Firebase Web API Key。"
             return False, f"Server returned status code {response.status_code}: {response.text}"
         except Exception as e:
             return False, f"Request failed: {e}"
