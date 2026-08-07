@@ -447,9 +447,12 @@ class CaptureWorker(QThread):
         
         # Re-initialize web push if private key changed
         if self.web_push.private_key_pem != settings.get("vapid_private_key"):
+            old_push = self.web_push
             self.web_push = WebPushManager(settings.get("vapid_private_key"))
             self.settings["vapid_public_key"] = self.web_push.public_key_b64
             self.settings["vapid_private_key"] = self.web_push.private_key_pem
+            if old_push:
+                old_push.close()
 
     def stop(self):
         self.running = False

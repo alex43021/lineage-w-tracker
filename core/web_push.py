@@ -1,6 +1,7 @@
 import logging
 import json
 import base64
+import requests
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 from pywebpush import webpush, WebPushException
@@ -11,6 +12,7 @@ class WebPushManager:
     def __init__(self, private_key_pem=None):
         self.private_key_pem = private_key_pem
         self.public_key_b64 = None
+        self._session = requests.Session()
         
         if self.private_key_pem:
             try:
@@ -21,6 +23,13 @@ class WebPushManager:
 
         if not self.private_key_pem:
             self.generate_keys()
+
+    def close(self):
+        """Close the persistent HTTP session."""
+        try:
+            self._session.close()
+        except Exception:
+            pass
 
     def generate_keys(self):
         """Generate a new VAPID EC key pair."""
@@ -78,6 +87,7 @@ class WebPushManager:
                 vapid_claims={
                     "sub": "mailto:lineagew-chat-capture@example.com"
                 },
+                requests_session=self._session,
                 timeout=5
             )
             return True, "Success"
