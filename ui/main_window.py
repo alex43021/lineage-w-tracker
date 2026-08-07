@@ -864,7 +864,7 @@ class MainWindow(QWidget):
         self.settings = self.load_settings()
         self.worker = None
 
-        self.setWindowTitle("天堂W 對話擷取與 BOSS 監控")
+        self.setWindowTitle("天堂W Boss追蹤系統")
         self.resize(1060, 760)
         self.setStyleSheet(DARK_THEME_QSS)
 
@@ -1018,7 +1018,7 @@ class MainWindow(QWidget):
         top_bar.setSpacing(10)
 
         # App title
-        title_lbl = QLabel("🎮 天堂W BOSS 監控")
+        title_lbl = QLabel("🎮 天堂W Boss追蹤系統")
         title_lbl.setStyleSheet("color: #e2e8f0; font-size: 18px; font-weight: bold; background: transparent;")
         top_bar.addWidget(title_lbl)
 

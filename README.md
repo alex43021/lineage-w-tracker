@@ -1,4 +1,4 @@
-# 天堂W BOSS 觀測與自動計時器 (Lineage W Boss Tracker)
+# 天堂W Boss追蹤系統 (Lineage W Boss Tracker)
 
 一個為《天堂W》血盟設計的自動化 BOSS 出現與擊殺計時工具。包含 **Windows 桌面端擷圖辨識程式** 與 **手機/電腦 Web 介面 (PWA)**。
 
