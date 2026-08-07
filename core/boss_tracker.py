@@ -291,12 +291,29 @@ class BossTracker:
         return {"boss": boss_name, "type": "spawn", "time": time_str, "source": source}
 
     @staticmethod
-    def _parse_datetime(iso_str):
-        """Parse ISO string cleanly, converting UTC/tz-aware strings to local naive datetime."""
-        if not iso_str:
+    def _parse_datetime(val):
+        """Parse ISO string or numeric epoch timestamp (ms or s), converting to local naive datetime."""
+        if not val:
             return None
+        if isinstance(val, (int, float)):
+            try:
+                num = float(val)
+                if num > 1e11:  # Milliseconds
+                    num = num / 1000.0
+                return datetime.fromtimestamp(num)
+            except Exception:
+                return None
+        val_str = str(val).strip()
+        if val_str.replace('.', '', 1).isdigit():
+            try:
+                num = float(val_str)
+                if num > 1e11:  # Milliseconds
+                    num = num / 1000.0
+                return datetime.fromtimestamp(num)
+            except Exception:
+                pass
         try:
-            clean_str = str(iso_str).replace('Z', '+00:00')
+            clean_str = val_str.replace('Z', '+00:00')
             dt = datetime.fromisoformat(clean_str)
             if dt.tzinfo is not None:
                 dt = dt.astimezone().replace(tzinfo=None)
@@ -361,8 +378,7 @@ class BossTracker:
     def check_and_roll_overdue_bosses(self, now=None):
         """
         If a boss reaches its next_spawn_time but nobody reported death or OCR didn't catch it,
-        automatically roll next_spawn_time forward to the next cycle (+cooldown_mins)
-        and mark is_overdue = True.
+        automatically roll next_spawn_time forward to the next cycle and mark is_overdue = True.
         """
         if not now:
             now = datetime.now()
@@ -372,12 +388,21 @@ class BossTracker:
             if state.get("next_spawn_time"):
                 spawn_dt = self._parse_datetime(state["next_spawn_time"])
                 if spawn_dt and now > spawn_dt:
-                    cooldown = state.get("cooldown_mins", 60)
-                    cooldown_delta = timedelta(minutes=cooldown)
-                    curr = spawn_dt
-                    while curr <= now:
-                        curr += cooldown_delta
-                    state["next_spawn_time"] = curr.isoformat()
+                    if state.get("type") == "fixed":
+                        next_fixed = self.calculate_next_fixed_spawn(
+                            state.get("days", [0, 1, 2, 3, 4, 5, 6]),
+                            state.get("fixed_times", ["18:00"]),
+                            now
+                        )
+                        if next_fixed:
+                            state["next_spawn_time"] = next_fixed
+                    else:
+                        cooldown = state.get("cooldown_mins", 60)
+                        cooldown_delta = timedelta(minutes=cooldown)
+                        curr = spawn_dt
+                        while curr <= now:
+                            curr += cooldown_delta
+                        state["next_spawn_time"] = curr.isoformat()
                     state["is_overdue"] = True
                     updated = True
         return updated

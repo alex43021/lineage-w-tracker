@@ -1460,7 +1460,12 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
   const isFixed = (bossRule && bossRule.type === 'fixed') || (boss.type === 'fixed');
 
   let spawnMs = null;
-  if (isFixed && bossRule) {
+
+  if (boss.status === 'alive') {
+    isOverdue = false;
+    spawnMs = parseIsoToEpochMs(boss.last_spawn_time) || nowMs;
+  } else if (isFixed && bossRule) {
+    isOverdue = false;
     spawnMs = calculateNextFixedSpawnMs(bossRule, nowMs);
     if (!spawnMs) {
       spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
@@ -1468,16 +1473,14 @@ function getEffectiveBossState(boss, nowMs = Date.now()) {
   } else {
     const deathMs = parseIsoToEpochMs(boss.last_death_time);
     if (deathMs && !isNaN(deathMs)) {
-      // Dynamically recalculate next spawn time using active CD rule
       spawnMs = deathMs + cooldownMs;
     } else {
       spawnMs = parseIsoToEpochMs(boss.next_spawn_time);
     }
 
     if (spawnMs && !isNaN(spawnMs)) {
-      if (spawnMs <= nowMs && boss.status !== 'alive') {
+      if (spawnMs <= nowMs) {
         isOverdue = true;
-        // Auto roll forward to the next cycle using exact boss cooldown
         while (spawnMs <= nowMs) {
           spawnMs += cooldownMs;
         }
