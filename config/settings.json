@@ -7,7 +7,7 @@
   "ocr_threshold": 150,
   "ocr_interval_s": 2.0,
   "dedup_threshold": 0.75,
-  "ocr_lang": "zh-Hant",
+  "ocr_lang": "zh-Hans",
   "firebase_url": "https://wchat-6ea90-default-rtdb.asia-southeast1.firebasedatabase.app/",
   "firebase_passcode": "123456789",
   "vapid_private_key": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzPZVAL8ms/a4IRz4\nQSaLmPhQUe5carH+eZ68s24eoP2hRANCAAQ6zL+f/ZXtj+zC1vUTS5GvjsYnrCfx\nIm6W7AHgU6xYwG8kAix0sqSMvNyvaT5FCawhgdtplfaxFFTkqIBhQdHa\n-----END PRIVATE KEY-----\n",
@@ -2149,5 +2149,6 @@
     "居救着莫利提亞開始尊找目，可",
     "居牧老莫利提亞開始承我自褲"
   ],
-  "firebase_appcheck_token": "6LfTh3EtAAAAAL-GPhubU_uX29uNfTPb01PlixKn"
+  "firebase_appcheck_token": "6LfTh3EtAAAAAL-GPhubU_uX29uNfTPb01PlixKn",
+  "firebase_api_key": "AIzaSyCICtzptbLc7mpqAkf4Vt7mBoNxSax9zMg"
 }

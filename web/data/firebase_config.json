@@ -1,6 +1,7 @@
 {
   "databaseURL": "https://wchat-6ea90-default-rtdb.asia-southeast1.firebasedatabase.app/",
   "passcode": "123456789",
+  "apiKey": "AIzaSyCICtzptbLc7mpqAkf4Vt7mBoNxSax9zMg",
   "vapidPublicKey": "BDrMv5_9le2P7MLW9RNLka-OxiesJ_EibpbsAeBTrFjAbyQCLHSypIy83K9pPkUJrCGB22mV9rEUVOSogGFB0do",
   "appCheckSiteKey": "6LfTh3EtAAAAAL-GPhubU_uX29uNfTPb01PlixKn"
 }

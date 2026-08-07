@@ -32,8 +32,7 @@ class FirebaseClient:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
-        if self.app_check_token:
-            self.session.headers.update({"X-Firebase-AppCheck": str(self.app_check_token).strip()})
+        self.set_app_check_token(app_check_token)
 
     def close(self):
         """Close the underlying HTTP session."""
@@ -60,7 +59,7 @@ class FirebaseClient:
                 logger.info(f"Firebase 匿名登入成功, uid: {uid}")
                 return True
             else:
-                logger.warning(f"Firebase 匿名登入失敗 (HTTP {resp.status_code}): {resp.text}。若 Database 規則為 auth != null，請在 [設定] 中輸入有效的 Firebase Web API Key。")
+                logger.warning(f"Firebase 匿名登入失敗 (HTTP {resp.status_code}): {resp.text}。若 Database 規則為 auth != null，請在 [設定] 中輸入有效的 Firebase Web API Key 並確保 Firebase Console 中已開啟匿名登入 (Anonymous)。")
                 return False
         except Exception as e:
             logger.error(f"Firebase 匿名登入例外: {e}")
@@ -105,10 +104,12 @@ class FirebaseClient:
         return None
 
     def set_app_check_token(self, token):
-        """Dynamically update App Check token for HTTP requests."""
+        """Dynamically update App Check token for HTTP requests (only if it is a valid signed JWT App Check token)."""
         self.app_check_token = token
-        if token and str(token).strip():
-            self.session.headers.update({"X-Firebase-AppCheck": str(token).strip()})
+        token_str = str(token).strip() if token else ""
+        # Only send X-Firebase-AppCheck header if token is a signed JWT (has 3 parts separated by dots), not a reCAPTCHA site key
+        if token_str and token_str.count(".") == 2:
+            self.session.headers.update({"X-Firebase-AppCheck": token_str})
         else:
             self.session.headers.pop("X-Firebase-AppCheck", None)
 
