@@ -868,6 +868,11 @@ class MainWindow(QWidget):
         self.resize(1060, 760)
         self.setStyleSheet(DARK_THEME_QSS)
 
+        from PySide6.QtGui import QIcon
+        if os.path.exists("icons/logo.jpg"):
+            app_icon = QIcon("icons/logo.jpg")
+            self.setWindowIcon(app_icon)
+
         self.init_ui()
         self.refresh_windows()
         self.populate_rules_list()
@@ -875,7 +880,10 @@ class MainWindow(QWidget):
 
         # Initialize Windows Native System Tray Icon for bottom-right toast notifications
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
+        if os.path.exists("icons/logo.jpg"):
+            self.tray_icon.setIcon(QIcon("icons/logo.jpg"))
+        else:
+            self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
         self.tray_icon.show()
 
         # Update preview timer (for when running)
