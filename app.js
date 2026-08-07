@@ -909,33 +909,72 @@ if ('serviceWorker' in navigator) {
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', async () => {
   setupUIEventListeners();
+  postLoadInit();
   await loadConfig();
 });
+
+function postLoadInit() {
+  updateBossTypeToggleUI();
+  setTimelineSpanHours(timelineSpanHours);
+  
+  // 1. Render boss grid & timeline immediately with default rules for zero-delay usability
+  bossRules = defaultBossRules;
+  initDefaultBossStates();
+  renderBossGrid();
+  updateTimeline();
+  renderSequenceQueue();
+  updateAppCheckBadge(false);
+
+  // 2. Check localStorage overrides synchronously
+  const savedUrl = localStorage.getItem('lw_db_url');
+  const savedCode = localStorage.getItem('lw_passcode');
+  if (savedUrl) currentDbUrl = savedUrl.replace(/\/$/, "");
+  if (savedCode) currentPasscode = savedCode;
+
+  // 3. Start 1-second interval timer for live countdowns & timeline indicator
+  setInterval(tickRealtimeLoop, 1000);
+
+  // 4. Initialize Firebase connection
+  initFirebase(currentDbUrl, currentPasscode);
+}
 
 async function loadConfig() {
   try {
     const response = await fetch('data/firebase_config.json');
     if (response.ok) {
       const config = await response.json();
+      let changed = false;
       if (config.databaseURL && config.databaseURL.replace(/\/$/, "") !== currentDbUrl) {
         currentDbUrl = config.databaseURL.replace(/\/$/, "");
+        changed = true;
       }
       if (config.passcode && config.passcode !== currentPasscode) {
         currentPasscode = config.passcode;
+        changed = true;
       }
       if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.trim()) {
-        firebaseApiKey = config.apiKey.trim();
-        localStorage.setItem('lw_firebase_api_key', firebaseApiKey);
+        const newApiKey = config.apiKey.trim();
+        if (newApiKey !== firebaseApiKey) {
+          firebaseApiKey = newApiKey;
+          localStorage.setItem('lw_firebase_api_key', firebaseApiKey);
+          changed = true;
+        }
       }
       if (config.appCheckSiteKey && typeof config.appCheckSiteKey === 'string' && config.appCheckSiteKey.trim()) {
-        appCheckSiteKey = config.appCheckSiteKey.trim();
-        localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+        const newKey = config.appCheckSiteKey.trim();
+        if (newKey !== appCheckSiteKey) {
+          appCheckSiteKey = newKey;
+          localStorage.setItem('lw_appcheck_site_key', appCheckSiteKey);
+          changed = true;
+        }
+      }
+      if (changed) {
+        initFirebase(currentDbUrl, currentPasscode);
       }
     }
   } catch (e) {
     console.log("data/firebase_config.json not found, using defaults.");
   }
-  initFirebase(currentDbUrl, currentPasscode);
 }
 
 function normalizeBossStates(data) {
