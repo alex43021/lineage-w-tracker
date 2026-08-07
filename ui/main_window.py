@@ -502,19 +502,10 @@ class CaptureWorker(QThread):
                             except Exception as e:
                                 logger.error(f"Error in OCR cycle for HWND {hwnd}: {e}")
 
-                    # Periodic garbage collection and OS working set trim to keep RAM low
-                    if cycle_count % 15 == 0:
+                    # Periodic garbage collection (every ~5 min)
+                    if cycle_count % 150 == 0:
                         import gc
                         gc.collect()
-                        try:
-                            import ctypes
-                            from ctypes import wintypes
-                            kernel32 = ctypes.windll.kernel32
-                            handle = kernel32.GetCurrentProcess()
-                            kernel32.SetProcessWorkingSetSize.argtypes = [wintypes.HANDLE, ctypes.c_size_t, ctypes.c_size_t]
-                            kernel32.SetProcessWorkingSetSize(handle, ctypes.c_size_t(-1), ctypes.c_size_t(-1))
-                        except Exception as e:
-                            logger.error(f"Working set trim error: {e}")
 
                 # 2. Check for Manual Reports (Every 2 seconds)
                 if now - last_report_check_time >= 2.0:
@@ -748,8 +739,10 @@ class CaptureWorker(QThread):
             # Emit line to UI along with its whitelisted status and matched boss name
             self.chat_log_signal.emit(formatted_line, is_whitelisted, matched_boss_name or "")
             
-            # Accumulate in memory buffer
+            # Accumulate in memory buffer (hard-bounded to the last 100 entries)
             self.chat_history_buffer.append(formatted_line)
+            if len(self.chat_history_buffer) > 100:
+                del self.chat_history_buffer[:-100]
 
     @staticmethod
     def is_blacklisted_line(line, exclusions):
@@ -777,42 +770,6 @@ class CaptureWorker(QThread):
                 if exc_str in clean_strip:
                     return True
         return False
-        
-        # Enforce history limit (keep last 100)
-        if len(self.chat_history_buffer) > 100:
-            self.chat_history_buffer = self.chat_history_buffer[-100:]
-
-        # Check boss tracker rules for whitelisted lines
-        all_events = []
-        state_changed = False
-        
-        for cleaned_line, event_time, is_whitelisted in parsed_events:
-            if is_whitelisted:
-                events = self.boss_tracker.process_ocr_lines([cleaned_line], event_time)
-                if events:
-                    state_changed = True
-                    all_events.extend(events)
-                
-        if state_changed:
-            # Sync states to Firebase
-            if self.firebase.is_configured():
-                self.firebase.update_boss_states(self.boss_tracker.states)
-            
-            # Emit back to UI
-            self.boss_states_signal.emit(self.boss_tracker.states)
-            
-            # Send Web Push alerts for detected events
-            for ev in all_events:
-                boss = ev["boss"]
-                ev_type = ev["type"]
-                
-                title = f"👹 王怪警報: {boss}"
-                if ev_type == "spawn":
-                    body = f"偵測到對話：{boss} 已出生！"
-                else:
-                    body = f"偵測到對話：{boss} 已擊敗！下次預計出生時間 {ev['next_spawn']}"
-                
-                self.broadcast_push_notification(title, body)
 
     def process_incoming_firebase_events(self):
         """Fetch pending manual reports and test push requests from Firebase."""
