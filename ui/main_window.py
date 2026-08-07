@@ -1684,14 +1684,17 @@ class MainWindow(QWidget):
             return
 
         client = FirebaseClient(url, passcode)
-        success, msg = client.test_connection()
-        self.update_connection_status(success, msg)
+        try:
+            success, msg = client.test_connection()
+            self.update_connection_status(success, msg)
 
-        if show_popup:
-            if success:
-                QMessageBox.information(self, "連線成功", "🎉 已成功連線至 Firebase 資料庫！")
-            else:
-                QMessageBox.critical(self, "連線失敗", f"❌ 無法連線至 Firebase 資料庫：\n{msg}\n\n請確認網址格式正確且 Firebase 資料庫規則權限已開啟。")
+            if show_popup:
+                if success:
+                    QMessageBox.information(self, "連線成功", "🎉 已成功連線至 Firebase 資料庫！")
+                else:
+                    QMessageBox.critical(self, "連線失敗", f"❌ 無法連線至 Firebase 資料庫：\n{msg}\n\n請確認網址格式正確且 Firebase 資料庫規則權限已開啟。")
+        finally:
+            client.close()
 
     def start_monitoring(self):
         # Pre-save settings
@@ -2020,21 +2023,26 @@ class MainWindow(QWidget):
         if not boss_name:
             return
         
-        now = datetime.now()
+        is_disposable_fb = False
         if self.worker and self.worker.isRunning():
             tracker = self.worker.boss_tracker
             fb = self.worker.firebase
         else:
             tracker = BossTracker(self.settings.get("boss_rules", []))
             fb = FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"))
+            is_disposable_fb = True
 
-        tracker.record_spawn(boss_name, now, source="manual", reporter="Host (GUI)")
-        
-        if fb.is_configured():
-            fb.update_boss_states(tracker.states)
+        try:
+            tracker.record_spawn(boss_name, now, source="manual", reporter="Host (GUI)")
+            
+            if fb.is_configured():
+                fb.update_boss_states(tracker.states)
 
-        self.update_boss_ui(tracker.states)
-        self.log_message(f"主控端手動強制 BOSS {boss_name} 為『存活中』")
+            self.update_boss_ui(tracker.states)
+            self.log_message(f"主控端手動強制 BOSS {boss_name} 為『存活中』")
+        finally:
+            if is_disposable_fb:
+                fb.close()
 
     def force_boss_dead(self):
         """Force the selected boss to Dead state."""
@@ -2052,22 +2060,28 @@ class MainWindow(QWidget):
             if death_time > now:
                 death_time -= timedelta(days=1)
         
+        is_disposable_fb = False
         if self.worker and self.worker.isRunning():
             tracker = self.worker.boss_tracker
             fb = self.worker.firebase
         else:
             tracker = BossTracker(self.settings.get("boss_rules", []))
             fb = FirebaseClient(self.settings.get("firebase_url"), self.settings.get("firebase_passcode"))
+            is_disposable_fb = True
 
-        tracker.record_death(boss_name, death_time, source="manual", reporter="Host (GUI)")
-        
-        if fb.is_configured():
-            fb.update_boss_states(tracker.states)
+        try:
+            tracker.record_death(boss_name, death_time, source="manual", reporter="Host (GUI)")
+            
+            if fb.is_configured():
+                fb.update_boss_states(tracker.states)
 
-        self.update_boss_ui(tracker.states)
-        
-        death_time_str = death_time.strftime("%H:%M")
-        self.log_message(f"主控端手動強制 BOSS {boss_name} 為『已死亡』(死亡時間: {death_time_str})，計時重置！")
+            self.update_boss_ui(tracker.states)
+            
+            death_time_str = death_time.strftime("%H:%M")
+            self.log_message(f"主控端手動強制 BOSS {boss_name} 為『已死亡』(死亡時間: {death_time_str})，計時重置！")
+        finally:
+            if is_disposable_fb:
+                fb.close()
 
     def test_single_ocr(self):
         """Captures a single frame, runs OCR, and displays the raw results in a popup to help with troubleshooting."""

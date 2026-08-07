@@ -33,6 +33,13 @@ class FirebaseClient:
         if self.app_check_token:
             self.session.headers.update({"X-Firebase-AppCheck": str(self.app_check_token).strip()})
 
+    def close(self):
+        """Close the underlying HTTP session."""
+        try:
+            self.session.close()
+        except Exception:
+            pass
+
     def sign_in_anonymously(self):
         """Sign in anonymously via Firebase Auth REST API. Returns True on success."""
         url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}"
